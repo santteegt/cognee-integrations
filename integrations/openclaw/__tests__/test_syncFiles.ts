@@ -54,6 +54,7 @@ describe("syncFiles", () => {
       baseUrl: "http://test",
       apiKey: "key",
       datasetName: "test",
+      searchPrompt: "",
       searchType: "GRAPH_COMPLETION",
       maxResults: 6,
       minScore: 0,
@@ -80,7 +81,7 @@ describe("syncFiles", () => {
 
       mockAdd.mockResolvedValue({ datasetId: "ds1", datasetName: "test", dataId: "id1" });
 
-      const result = await syncFiles(client, files, syncIndex, cfg, logger);
+      const result = await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(result).toEqual({ added: 1, updated: 0, skipped: 0, errors: 0, deleted: 0, datasetId: "ds1" });
       expect(mockAdd).toHaveBeenCalledWith({
@@ -104,7 +105,7 @@ describe("syncFiles", () => {
 
       mockUpdate.mockResolvedValue({ datasetId: "ds1", datasetName: "test", dataId: "id1" });
 
-      const result = await syncFiles(client, files, syncIndex, cfg, logger);
+      const result = await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(result).toEqual({ added: 0, updated: 1, skipped: 0, errors: 0, deleted: 0, datasetId: "ds1" });
       expect(mockUpdate).toHaveBeenCalledWith({
@@ -125,7 +126,7 @@ describe("syncFiles", () => {
       mockUpdate.mockRejectedValue(new Error("404 Not found"));
       mockAdd.mockResolvedValue({ datasetId: "ds1", datasetName: "test", dataId: "id2" });
 
-      const result = await syncFiles(client, files, syncIndex, cfg, logger);
+      const result = await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(result).toEqual({ added: 1, updated: 0, skipped: 0, errors: 0, deleted: 0, datasetId: "ds1" });
       expect(mockAdd).toHaveBeenCalled();
@@ -141,7 +142,7 @@ describe("syncFiles", () => {
 
       mockUpdate.mockRejectedValue(new Error("500 Internal error"));
 
-      const result = await syncFiles(client, files, syncIndex, cfg, logger);
+      const result = await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(result).toEqual({ added: 0, updated: 0, skipped: 0, errors: 1, deleted: 0, datasetId: "ds1" });
       expect(syncIndex.entries["existing.md"]).toEqual({ hash: "old-hash", dataId: "id1" });
@@ -156,7 +157,7 @@ describe("syncFiles", () => {
         entries: { "unchanged.md": { hash: "hash-content", dataId: "id1" } },
       };
 
-      const result = await syncFiles(client, files, syncIndex, cfg, logger);
+      const result = await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(result).toEqual({ added: 0, updated: 0, skipped: 1, errors: 0, deleted: 0 });
       expect(mockAdd).not.toHaveBeenCalled();
@@ -174,7 +175,7 @@ describe("syncFiles", () => {
 
       mockDelete.mockResolvedValue({ datasetId: "ds1", dataId: "id1", deleted: true });
 
-      const result = await syncFiles(client, files, syncIndex, cfg, logger);
+      const result = await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(result).toEqual({ added: 0, updated: 0, skipped: 0, errors: 0, deleted: 1, datasetId: "ds1" });
       expect(mockDelete).toHaveBeenCalledWith({ dataId: "id1", datasetId: "ds1" });
@@ -192,7 +193,7 @@ describe("syncFiles", () => {
 
       mockDelete.mockResolvedValue({ datasetId: "ds1", dataId: "id1", deleted: false });
 
-      const result = await syncFiles(client, files, syncIndex, cfg, logger);
+      const result = await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(result).toEqual({ added: 0, updated: 0, skipped: 0, errors: 1, deleted: 0, datasetId: "ds1" });
       expect(syncIndex.entries["removed.md"]).toEqual({ hash: "hash", dataId: "id1" });
@@ -206,7 +207,7 @@ describe("syncFiles", () => {
         datasetId: "ds1",
       };
 
-      const result = await syncFiles(client, files, syncIndex, cfg, logger);
+      const result = await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(result).toEqual({ added: 0, updated: 0, skipped: 0, errors: 0, deleted: 0, datasetId: "ds1" });
       expect(mockDelete).not.toHaveBeenCalled();
@@ -220,7 +221,7 @@ describe("syncFiles", () => {
         // no datasetId
       };
 
-      const result = await syncFiles(client, files, syncIndex, cfg, logger);
+      const result = await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(result).toEqual({ added: 0, updated: 0, skipped: 0, errors: 0, deleted: 0 });
       expect(mockDelete).not.toHaveBeenCalled();
@@ -234,7 +235,7 @@ describe("syncFiles", () => {
 
       mockAdd.mockRejectedValue(new Error("Add failed"));
 
-      const result = await syncFiles(client, files, syncIndex, cfg, logger);
+      const result = await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(result).toEqual({ added: 0, updated: 0, skipped: 0, errors: 1, deleted: 0 });
       expect(syncIndex.entries).toEqual({});
@@ -262,7 +263,7 @@ describe("syncFiles", () => {
       mockUpdate.mockResolvedValue({ datasetId: "ds1", datasetName: "test", dataId: "id2" });
       mockDelete.mockResolvedValue({ datasetId: "ds1", dataId: "id4", deleted: true });
 
-      const result = await syncFiles(client, files, syncIndex, cfg, logger);
+      const result = await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(result).toEqual({ added: 1, updated: 1, skipped: 1, errors: 0, deleted: 1, datasetId: "ds1" });
       expect(mockAdd).toHaveBeenCalledTimes(1);
@@ -279,7 +280,7 @@ describe("syncFiles", () => {
 
       mockAdd.mockResolvedValue({ datasetId: "ds1", datasetName: "test", dataId: "id1" });
 
-      await syncFiles(client, files, syncIndex, cfg, logger);
+      await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(mockCognify).toHaveBeenCalledWith({ datasetIds: ["ds1"] });
     });
@@ -293,7 +294,7 @@ describe("syncFiles", () => {
 
       mockDelete.mockResolvedValue({ datasetId: "ds1", dataId: "id1", deleted: true });
 
-      await syncFiles(client, files, syncIndex, cfg, logger);
+      await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(mockCognify).toHaveBeenCalledWith({ datasetIds: ["ds1"] });
     });
@@ -305,9 +306,30 @@ describe("syncFiles", () => {
 
       mockAdd.mockResolvedValue({ datasetId: "ds1", datasetName: "test", dataId: "id1" });
 
-      await syncFiles(client, files, syncIndex, cfg, logger);
+      await syncFiles(client, files, files, syncIndex, cfg, logger);
 
       expect(mockCognify).not.toHaveBeenCalled();
+    });
+
+    it("does not delete unchanged files when called with partial changedFiles", async () => {
+      const fullFiles = [
+        createFile("unchanged.md", "old content", "hash1"),
+        createFile("changed.md", "new content", "hash2")
+      ];
+      const changedFiles = [fullFiles[1]]; // only changed
+      const syncIndex: SyncIndex = {
+        entries: {
+          "unchanged.md": { hash: "hash1", dataId: "id_unchanged" },
+          "changed.md": { hash: "oldhash", dataId: "id_changed" }
+        }
+      };
+
+      mockUpdate.mockResolvedValue({});
+
+      const result = await syncFiles(client, changedFiles, fullFiles, syncIndex, cfg, logger);
+
+      expect(result.deleted).toBe(0);
+      expect(mockDelete).not.toHaveBeenCalled();
     });
   });
 });
