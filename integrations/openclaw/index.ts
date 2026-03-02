@@ -1,4 +1,4 @@
-import fs from "node:fs/promises";
+import { promises as fs } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
@@ -841,3 +841,7 @@ const memoryCogneePlugin = {
 };
 
 export default memoryCogneePlugin;
+
+// Exports for testing
+export { CogneeClient, syncFiles };
+export type { CogneePluginConfig, MemoryFile, SyncIndex, SyncResult };
