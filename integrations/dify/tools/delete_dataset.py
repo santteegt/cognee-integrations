@@ -24,9 +24,7 @@ class DeleteDatasetTool(Tool):
             yield self.create_json_message({"succeeded": True, "dataset_id": dataset_id})
             yield self.create_variable_message("succeeded", True)
             yield self.create_variable_message("dataset_id", dataset_id)
-            yield self.create_text_message(
-                f"Successfully deleted dataset '{dataset_id}'."
-            )
+            yield self.create_text_message(f"Successfully deleted dataset '{dataset_id}'.")
         except Exception as e:
             yield self.create_json_message({"succeeded": False, "dataset_id": dataset_id})
             yield self.create_variable_message("succeeded", False)

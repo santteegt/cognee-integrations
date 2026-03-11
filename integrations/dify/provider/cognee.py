@@ -12,7 +12,6 @@ logger.addHandler(plugin_logger_handler)
 
 
 class CogneeProvider(ToolProvider):
-
     def _validate_credentials(self, credentials: dict[str, Any]) -> None:
         base_url = credentials.get("base_url", "").rstrip("/")
         api_key = credentials.get("api_key", "")

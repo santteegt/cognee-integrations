@@ -20,7 +20,9 @@ class SearchTool(Tool):
         only_context = tool_parameters.get("only_context", "false") == "true"
 
         datasets = [d.strip() for d in datasets_str.split(",") if d.strip()] if datasets_str else []
-        dataset_ids = [d.strip() for d in dataset_ids_str.split(",") if d.strip()] if dataset_ids_str else []
+        dataset_ids = (
+            [d.strip() for d in dataset_ids_str.split(",") if d.strip()] if dataset_ids_str else []
+        )
 
         body: dict[str, Any] = {
             "searchType": search_type,

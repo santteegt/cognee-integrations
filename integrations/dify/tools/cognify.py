@@ -17,7 +17,9 @@ class CognifyTool(Tool):
         ontology_key_str = tool_parameters.get("ontology_key", "")
 
         datasets = [d.strip() for d in datasets_str.split(",") if d.strip()] if datasets_str else []
-        dataset_ids = [d.strip() for d in dataset_ids_str.split(",") if d.strip()] if dataset_ids_str else []
+        dataset_ids = (
+            [d.strip() for d in dataset_ids_str.split(",") if d.strip()] if dataset_ids_str else []
+        )
 
         if not datasets and not dataset_ids:
             error_msg = "Either datasets or dataset_ids must be provided"
@@ -51,9 +53,7 @@ class CognifyTool(Tool):
             label = ", ".join(datasets) if datasets else ", ".join(dataset_ids)
             yield self.create_json_message(result)
             yield self.create_variable_message("datasets", label)
-            yield self.create_text_message(
-                f"Successfully cognified dataset(s): {label}"
-            )
+            yield self.create_text_message(f"Successfully cognified dataset(s): {label}")
         except httpx.HTTPStatusError as e:
             error_msg = f"Cognee API error {e.response.status_code}: {e.response.text}"
             yield self.create_json_message({"error": error_msg})

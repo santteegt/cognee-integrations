@@ -22,11 +22,13 @@ class DeleteDataTool(Tool):
             )
             response.raise_for_status()
 
-            yield self.create_json_message({
-                "succeeded": True,
-                "dataset_id": dataset_id,
-                "data_id": data_id,
-            })
+            yield self.create_json_message(
+                {
+                    "succeeded": True,
+                    "dataset_id": dataset_id,
+                    "data_id": data_id,
+                }
+            )
             yield self.create_variable_message("succeeded", True)
             yield self.create_variable_message("dataset_id", dataset_id)
             yield self.create_variable_message("data_id", data_id)
@@ -34,11 +36,13 @@ class DeleteDataTool(Tool):
                 f"Successfully deleted data item '{data_id}' from dataset '{dataset_id}'."
             )
         except Exception as e:
-            yield self.create_json_message({
-                "succeeded": False,
-                "dataset_id": dataset_id,
-                "data_id": data_id,
-            })
+            yield self.create_json_message(
+                {
+                    "succeeded": False,
+                    "dataset_id": dataset_id,
+                    "data_id": data_id,
+                }
+            )
             yield self.create_variable_message("succeeded", False)
             yield self.create_variable_message("dataset_id", dataset_id)
             yield self.create_variable_message("data_id", data_id)
