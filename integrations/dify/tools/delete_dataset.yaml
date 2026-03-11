@@ -1,6 +1,6 @@
 identity:
   name: "delete_dataset"
-  author: "cognee_team"
+  author: "topoteretes"
   label:
     en_US: "Delete Dataset"
     zh_Hans: "删除数据集"
