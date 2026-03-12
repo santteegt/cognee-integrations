@@ -3,7 +3,9 @@ name: Auto Create PR on Main Push
 
 on:
   push:
-    branches: [ main ]  # Trigger on push to main
+    branches: [ main ]
+    paths:
+      - 'integrations/dify/**'
 
 jobs:
   create_pr: # Renamed job for clarity
