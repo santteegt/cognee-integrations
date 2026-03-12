@@ -120,16 +120,14 @@ integrations:
     source_repo: https://github.com/topoteretes/cognee-vercel-ai-sdk
     notes: "Vercel AI SDK middleware – auto-store conversations, retrieve context"
 
-  # ── Skipped / deferred ─────────────────────────────────────────────
-
   - slug: openai-agents
     name: "Cognee Integration for OpenAI Agents"
     owner: cognee
     language: python
     registry: pypi
-    package_name: "TBD"
+    package_name: "cognee-integration-openai-agents"
     cognee_dependency: sdk
-    current_version: "TBD"
-    migration_status: skipped
+    current_version: "0.1.0"
+    migration_status: pending
     source_repo: https://github.com/topoteretes/cognee-integration-openai-agents
-    notes: "Repo currently inaccessible (404). Will revisit."
+    notes: "Repo currently private."
