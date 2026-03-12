@@ -7,6 +7,10 @@
 #   done       – code lives in this monorepo and is the primary dev location
 #   pending    – still in its own repo, migration planned
 #   skipped    – migration deferred (e.g. repo inaccessible)
+#
+# TODO: CI currently only runs import smoke tests. To run the example scripts
+#       as integration tests we need CI secrets (LLM_API_KEY, GOOGLE_API_KEY,
+#       etc.) provisioned per integration. Track and resolve before v1 release.
 
 integrations:
 
@@ -33,6 +37,18 @@ integrations:
     current_version: "0.0.1"
     migration_status: done
     notes: "Dify tool plugin – add data, cognify, search, delete via Cognee API"
+
+  - slug: google-adk
+    name: "Cognee Integration for Google ADK"
+    owner: cognee
+    language: python
+    registry: pypi
+    package_name: "cognee-integration-google-adk"
+    cognee_dependency: sdk
+    current_version: "0.1.1"
+    migration_status: done
+    source_repo: https://github.com/topoteretes/cognee-integration-google-adk
+    notes: "Google ADK agent tools – add, search, session management"
 
   # ── Pending migrations ─────────────────────────────────────────────
 
@@ -71,18 +87,6 @@ integrations:
     migration_status: pending
     source_repo: https://github.com/topoteretes/cognee-integration-strands
     notes: "Strands agent tools – add, search, session management"
-
-  - slug: google-adk
-    name: "Cognee Integration for Google ADK"
-    owner: cognee
-    language: python
-    registry: pypi
-    package_name: "cognee-integration-google-adk"
-    cognee_dependency: sdk
-    current_version: "0.1.0"
-    migration_status: pending
-    source_repo: https://github.com/topoteretes/cognee-integration-google-adk
-    notes: "Google ADK agent tools – add, search, session management"
 
   - slug: claude
     name: "Cognee Integration for Claude Agent SDK"

@@ -2,7 +2,7 @@
 """Check that all Python integrations pin the cognee dependency with a bounded range.
 
 Policy: Every Python integration that depends on cognee must declare it with both
-a lower bound (>=) and an upper bound (<). For example: cognee>=0.5.1,<0.6.0
+a lower bound (>=) and an upper bound (< or <=). For example: cognee>=0.5.1,<0.6.0
 
 Handles:
   - Simple deps:        "cognee>=0.5.1,<0.6.0"
@@ -33,8 +33,8 @@ COGNEE_URL_PATTERN = re.compile(r'"cognee(?![\w-])\s*@\s*[^"]*"')
 # Check for lower bound (>= or >)
 LOWER_BOUND_PATTERN = re.compile(r">=?\s*\d")
 
-# Check for upper bound (< or <=, but not <=>, !=)
-UPPER_BOUND_PATTERN = re.compile(r"(?<!=)<\s*\d")
+# Check for upper bound (< or <=, but not !=)
+UPPER_BOUND_PATTERN = re.compile(r"(?<!=)<=?\s*\d")
 
 
 def check_pyproject(pyproject_path: Path) -> list[str]:
