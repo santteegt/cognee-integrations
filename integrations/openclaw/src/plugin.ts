@@ -142,6 +142,7 @@ const memoryCogneePlugin = {
           const summary = `Sync complete: ${result.added} added, ${result.updated} updated, ${result.deleted} deleted, ${result.skipped} unchanged, ${result.errors} errors`;
           ctx.logger.info?.(summary);
           console.log(summary);
+          process.exit(0);
         });
 
       cognee
@@ -192,6 +193,7 @@ const memoryCogneePlugin = {
               `Sync index: ${SYNC_INDEX_PATH}`,
             ].join("\n"));
           }
+          process.exit(0);
         });
 
       cognee
@@ -205,8 +207,9 @@ const memoryCogneePlugin = {
           } catch (error) {
             console.log(`Cognee API: UNREACHABLE (${cfg.baseUrl})`);
             console.log(`Error: ${error instanceof Error ? error.message : String(error)}`);
-            process.exitCode = 1;
+            process.exit(1);
           }
+          process.exit(0);
         });
 
       cognee
@@ -216,12 +219,12 @@ const memoryCogneePlugin = {
           const files = await collectMemoryFiles(cliWorkspaceDir);
           if (files.length === 0) {
             console.log("No memory files found.");
-            return;
+            process.exit(0);
           }
           if (!multiScope) {
             console.log(`Multi-scope mode is OFF. All files go to dataset "${cfg.datasetName}".`);
             console.log(`Set companyDataset, userDatasetPrefix, or agentDatasetPrefix to enable.`);
-            return;
+            process.exit(0);
           }
           const grouped: Record<MemoryScope, string[]> = { company: [], user: [], agent: [] };
           for (const file of files) {
@@ -234,6 +237,7 @@ const memoryCogneePlugin = {
             if (grouped[scope].length === 0) console.log("  (no files)");
             else for (const p of grouped[scope]) console.log(`  ${p}`);
           }
+          process.exit(0);
         });
     }, { commands: ["cognee"] });
 

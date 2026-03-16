@@ -232,6 +232,17 @@ async function waitForCognifyThenMemify(
         logger.warn?.(`cognee-openclaw: cognify failed (status: ${status}), skipping memify`);
         return;
       }
+      if (status === "unknown") {
+        // Endpoint exists but doesn't track this operation — fall back to optimistic memify
+        logger.warn?.("cognee-openclaw: could not poll cognify status, running memify optimistically");
+        try {
+          await client.memify({ datasetIds: [datasetId] });
+          logger.info?.("cognee-openclaw: memify dispatched (optimistic)");
+        } catch (error) {
+          logger.warn?.(`cognee-openclaw: memify failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        return;
+      }
       // Still running, continue polling
     } catch {
       // Status endpoint may not exist or may fail — fall back to fire-and-forget

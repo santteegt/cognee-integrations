@@ -267,10 +267,11 @@ export class CogneeHttpClient {
   }
 
   async memify(params: { datasetIds?: string[] } = {}): Promise<{ status?: string }> {
+    const datasetId = params.datasetIds?.[0];
     return this.fetchJson<{ status?: string }>("/api/v1/memify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ datasetIds: params.datasetIds }),
+      body: JSON.stringify({ dataset_id: datasetId }),
     });
   }
 
@@ -305,9 +306,10 @@ export class CogneeHttpClient {
    * Poll cognify pipeline status. Returns the status string ("completed", "running", "failed", etc.).
    */
   async datasetStatus(datasetId: string): Promise<string> {
-    type StatusResp = { status?: string; pipeline_status?: string };
-    const resp = await this.fetchJson<StatusResp>(`/api/v1/datasets/status?dataset_id=${datasetId}`, { method: "GET" });
-    return resp.status ?? resp.pipeline_status ?? "unknown";
+    const resp = await this.fetchJson<Record<string, string>>(`/api/v1/datasets/status?dataset_id=${datasetId}`, { method: "GET" });
+    // Response is a dict keyed by dataset ID: { [datasetId]: "DATASET_PROCESSING_COMPLETED" }
+    const status = resp[datasetId] ?? Object.values(resp)[0] ?? "unknown";
+    return status.toLowerCase().replace("dataset_processing_", "");
   }
 }
 
