@@ -213,6 +213,38 @@ const memoryCogneePlugin = {
         });
 
       cognee
+        .command("setup")
+        .description("Configure OpenClaw to use Cognee as the sole memory provider")
+        .action(async () => {
+          const { loadConfig, writeConfigFile } = api.runtime.config;
+          const config = loadConfig();
+
+          // Set Cognee as the memory slot
+          config.plugins ??= {} as typeof config.plugins;
+          config.plugins.slots ??= {} as typeof config.plugins.slots;
+          (config.plugins.slots as Record<string, string>).memory = "cognee-openclaw";
+
+          // Disable built-in memory providers
+          config.plugins.entries ??= {} as typeof config.plugins.entries;
+          const entries = config.plugins.entries as Record<string, { enabled: boolean }>;
+          entries["memory-core"] = { enabled: false };
+          entries["memory-lancedb"] = { enabled: false };
+
+          // Ensure cognee-openclaw is enabled
+          entries["cognee-openclaw"] ??= { enabled: true } as typeof entries[string];
+          entries["cognee-openclaw"].enabled = true;
+
+          await writeConfigFile(config);
+
+          console.log("Cognee memory setup complete:");
+          console.log("  - Memory slot set to cognee-openclaw");
+          console.log("  - memory-core disabled");
+          console.log("  - memory-lancedb disabled");
+          console.log("\nRun 'openclaw cognee health' to verify Cognee connectivity.");
+          process.exit(0);
+        });
+
+      cognee
         .command("scopes")
         .description("Show memory scope routing for current workspace files")
         .action(async () => {

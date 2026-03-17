@@ -12,7 +12,8 @@ OpenClaw plugin that adds Cognee-backed memory with **multi-scope support** (com
 - **Health check**: Verifies Cognee API connectivity before operations
 - **Auto-index**: Syncs memory markdown files to Cognee (add new, update changed, delete removed, skip unchanged)
 - **Memify support**: Optional graph enrichment after cognify for better entity consolidation
-- **CLI commands**: `openclaw cognee index`, `openclaw cognee status`, `openclaw cognee health`, `openclaw cognee scopes`
+- **One-command setup**: `openclaw cognee setup` configures Cognee as the sole memory provider
+- **CLI commands**: `openclaw cognee setup`, `openclaw cognee index`, `openclaw cognee status`, `openclaw cognee health`, `openclaw cognee scopes`
 
 ## Installation
 
@@ -31,9 +32,19 @@ Or once published:
 openclaw plugins install @cognee/cognee-openclaw
 ```
 
-## Quick Start (Single-Scope)
+## Quick Start
 
-For simple setups, the plugin works with a single dataset (backward compatible):
+After installing, run the setup command to configure Cognee as the sole memory provider:
+
+```bash
+openclaw cognee setup
+```
+
+This automatically:
+- Sets the memory slot to `cognee-openclaw`
+- Disables built-in memory providers (`memory-core`, `memory-lancedb`)
+
+Then optionally configure the Cognee connection in `~/.openclaw/openclaw.json`:
 
 ```yaml
 plugins:
@@ -199,6 +210,9 @@ This lets the agent distinguish between personal context, shared knowledge, and 
 ## CLI Commands
 
 ```bash
+# Configure Cognee as the sole memory provider (run once after install)
+openclaw cognee setup
+
 # Manually sync memory files to Cognee
 openclaw cognee index
 
