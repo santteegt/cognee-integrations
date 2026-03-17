@@ -15,6 +15,19 @@ OpenClaw plugin that adds Cognee-backed memory with **multi-scope support** (com
 - **One-command setup**: `openclaw cognee setup` configures Cognee as the sole memory provider
 - **CLI commands**: `openclaw cognee setup`, `openclaw cognee index`, `openclaw cognee status`, `openclaw cognee health`, `openclaw cognee scopes`
 
+## Security: Recommended Plugin Allowlist
+
+OpenClaw will auto-load any plugin it discovers if `plugins.allow` is not set. To restrict which plugins can load, add an explicit allowlist to your `~/.openclaw/openclaw.json`:
+
+```yaml
+plugins:
+  allow:
+    - cognee-openclaw
+    - cognee-openclaw-skills
+```
+
+Without this, any plugin found in your environment could be loaded automatically.
+
 ## Installation
 
 Install the plugin locally for development:
@@ -29,7 +42,8 @@ openclaw plugins install -l .
 Or once published:
 
 ```bash
-openclaw plugins install @cognee/cognee-openclaw
+# Pin to an exact version to avoid unintended updates (supply-chain best practice)
+openclaw plugins install @cognee/cognee-openclaw@2026.3.0
 ```
 
 ## Quick Start
