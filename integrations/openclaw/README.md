@@ -193,9 +193,9 @@ This lets the agent distinguish between personal context, shared knowledge, and 
 
 | Type | Description |
 |------|-------------|
-| `CHUNKS` | **Default** — semantic vector search, returns raw stored text |
+| `GRAPH_COMPLETION` | **Default** — graph traversal + LLM reasoning |
+| `CHUNKS` | Semantic vector search, returns raw stored text (no generation) |
 | `FEELING_LUCKY` | Auto-selects a strategy per query (may pick generative modes) |
-| `GRAPH_COMPLETION` | Graph traversal + LLM reasoning |
 | `GRAPH_COMPLETION_COT` | Chain-of-thought reasoning over graph (iterative) |
 | `GRAPH_COMPLETION_CONTEXT_EXTENSION` | Extended context retrieval (multiple rounds) |
 | `GRAPH_SUMMARY_COMPLETION` | Graph with pre-computed summaries |
