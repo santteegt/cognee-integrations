@@ -183,9 +183,9 @@ This lets the agent distinguish between personal context, shared knowledge, and 
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `searchType` | string | `CHUNKS` | Search strategy (see below) |
+| `searchType` | string | `GRAPH_COMPLETION` | Search strategy (see below) |
 | `maxResults` | number | `3` | Max memories to inject per scope |
-| `minScore` | number | `0.5` | Minimum relevance score filter |
+| `minScore` | number | `0.3` | Minimum relevance score filter |
 | `maxTokens` | number | `512` | Token cap for recall context per scope |
 | `searchPrompt` | string | `""` | System prompt to guide search |
 
