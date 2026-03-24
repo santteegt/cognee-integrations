@@ -226,6 +226,8 @@ This lets the agent distinguish between personal context, shared knowledge, and 
 | `requestTimeoutMs` | number | `60000` | HTTP timeout for Cognee requests |
 | `ingestionTimeoutMs` | number | `300000` | HTTP timeout for add/update requests |
 
+Note: Files are stored in Cognee using sanitized relative paths as filenames (e.g., `MEMORY.md.txt` for `MEMORY.md`, `memory.tools.md.txt` for `memory/tools.md`) for easy identification and to avoid path separator issues.
+
 ## CLI Commands
 
 ```bash

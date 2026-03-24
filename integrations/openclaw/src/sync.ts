@@ -38,6 +38,7 @@ export async function syncFiles(
             dataId: existing.dataId,
             datasetId,
             data: dataWithMetadata,
+            filePath: file.path,
           });
           const newDataId = updateResponse.dataId;
           if (!newDataId) {
@@ -60,7 +61,12 @@ export async function syncFiles(
         }
       }
 
-      const response = await client.add({ data: dataWithMetadata, datasetName: dsName, datasetId });
+      const response = await client.add({
+        datasetName: dsName,
+        datasetId,
+        data: dataWithMetadata,
+        filePath: file.path,
+    });
 
       if (response.datasetId && response.datasetId !== datasetId) {
         datasetId = response.datasetId;
