@@ -175,10 +175,10 @@ export class CogneeHttpClient {
     data: string;
     datasetName: string;
     datasetId?: string;
+    filePath: string;
   }): Promise<{ datasetId: string; datasetName: string; dataId?: string }> {
     const formData = new FormData();
-    const hash8 = createHash("sha256").update(params.data).digest("hex").slice(0, 8);
-    const fileName = `openclaw-memory-${hash8}.txt`;
+    const fileName = sanitizeFilePath(params.filePath);
     formData.append("data", new Blob([params.data], { type: "text/plain" }), fileName);
     formData.append("datasetName", params.datasetName);
     if (params.datasetId) {
@@ -194,7 +194,7 @@ export class CogneeHttpClient {
     let dataId = extractDataId(data.data_id ?? data.data_ingestion_info);
 
     if (!dataId && data.dataset_id) {
-      dataId = await this.resolveDataIdFromDataset(data.dataset_id, fileName);
+      dataId = await this.resolveDataIdFromDataset(data.dataset_id, sanitizeFilePath(params.filePath));
     }
 
     if (!dataId) {
@@ -211,11 +211,11 @@ export class CogneeHttpClient {
     dataId: string;
     datasetId: string;
     data: string;
+    filePath: string;
   }): Promise<{ datasetId: string; datasetName: string; dataId?: string }> {
     const query = new URLSearchParams({ data_id: params.dataId, dataset_id: params.datasetId });
     const formData = new FormData();
-    const hash8 = createHash("sha256").update(params.data).digest("hex").slice(0, 8);
-    const fileName = `openclaw-memory-${hash8}.txt`;
+    const fileName = sanitizeFilePath(params.filePath);
     formData.append("data", new Blob([params.data], { type: "text/plain" }), fileName);
 
     const data = await this.fetchJson<CogneeAddResponse>(
@@ -226,7 +226,7 @@ export class CogneeHttpClient {
 
     let dataId = extractDataId(data.data_id ?? data.data_ingestion_info);
     if (!dataId) {
-      dataId = await this.resolveDataIdFromDataset(params.datasetId, fileName);
+      dataId = await this.resolveDataIdFromDataset(params.datasetId, sanitizeFilePath(params.filePath));
     }
 
     return { datasetId: data.dataset_id, datasetName: data.dataset_name, dataId };
@@ -237,7 +237,7 @@ export class CogneeHttpClient {
       type DataItem = { id: string; name: string };
       const items = await this.fetchJson<DataItem[]>(`/api/v1/datasets/${datasetId}/data`, { method: "GET" });
       if (!Array.isArray(items)) return undefined;
-      const match = items.find((item) => item.name === fileName.replace(/\.txt$/, ""));
+      const match = items.find((item) => item.name === fileName);
       return match?.id;
     } catch {
       return undefined;
@@ -316,6 +316,12 @@ export class CogneeHttpClient {
 // ---------------------------------------------------------------------------
 // Helpers (module-private)
 // ---------------------------------------------------------------------------
+
+function sanitizeFilePath(filePath: string): string {
+  var mutatedPath = filePath.replace(/\//g, '_');
+  mutatedPath = mutatedPath.replace(/\./g, '-');
+  return mutatedPath;
+}
 
 function extractDataId(value: unknown): string | undefined {
   if (!value) return undefined;
