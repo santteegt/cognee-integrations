@@ -325,7 +325,7 @@ const memoryCogneePlugin = {
     // ------------------------------------------------------------------
 
     if (cfg.autoRecall) {
-      api.on("before_agent_start", async (event, ctx) => {
+      api.on("before_prompt_build", async (event, ctx) => {
         await stateReady;
 
         if (!event.prompt || event.prompt.length < 5) {
