@@ -1,6 +1,7 @@
 import { CogneeHttpClient } from "../src/client";
 import { syncFiles, syncFilesScoped, _setPollInterval } from "../src/sync";
-import { matchGlob, routeFileToScope, datasetNameForScope, isMultiScopeEnabled } from "../src/scope";
+import { matchGlob, routeFileToScope, datasetNameForScope, isMultiScopeEnabled, agentScopeKey } from "../src/scope";
+import { loadScopedSyncIndexes } from "../src/persistence";
 import type { MemoryFile, SyncIndex, CogneePluginConfig, ScopedSyncIndexes, MemoryScope, ScopeRoute } from "../src/types";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -459,5 +460,195 @@ describe("syncFilesScoped", () => {
 
     expect(result.skipped).toBe(1);
     expect(mockAdd).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// agentScopeKey tests (multi-agent support)
+// ---------------------------------------------------------------------------
+
+describe("agentScopeKey", () => {
+  it("returns 'agent' when runtimeAgentId is undefined", () => {
+    expect(agentScopeKey(undefined, "default")).toBe("agent");
+  });
+
+  it("returns 'agent' when runtimeAgentId is 'main'", () => {
+    expect(agentScopeKey("main", "default")).toBe("agent");
+    expect(agentScopeKey("main", "coder")).toBe("agent");
+  });
+
+  it("returns 'agent' when runtimeAgentId matches cfgAgentId", () => {
+    expect(agentScopeKey("coder", "coder")).toBe("agent");
+    expect(agentScopeKey("default", "default")).toBe("agent");
+  });
+
+  it("returns 'agent:{id}' when runtimeAgentId is a different agent", () => {
+    expect(agentScopeKey("reviewer", "coder")).toBe("agent:reviewer");
+    expect(agentScopeKey("analyst", "default")).toBe("agent:analyst");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// datasetNameForScope with runtimeAgentId (multi-agent support)
+// ---------------------------------------------------------------------------
+
+describe("datasetNameForScope with runtimeAgentId", () => {
+  it("uses runtimeAgentId for agent scope dataset name when provided", () => {
+    const cfg = baseCfg({ agentDatasetPrefix: "proj-agent", agentId: "coder" });
+    expect(datasetNameForScope("agent", cfg, "reviewer")).toBe("proj-agent-reviewer");
+  });
+
+  it("uses cfgAgentId when runtimeAgentId is 'main'", () => {
+    const cfg = baseCfg({ agentDatasetPrefix: "proj-agent", agentId: "coder" });
+    expect(datasetNameForScope("agent", cfg, "main")).toBe("proj-agent-coder");
+  });
+
+  it("uses cfgAgentId when runtimeAgentId is undefined", () => {
+    const cfg = baseCfg({ agentDatasetPrefix: "proj-agent", agentId: "coder" });
+    expect(datasetNameForScope("agent", cfg, undefined)).toBe("proj-agent-coder");
+  });
+
+  it("does not affect company or user scope names", () => {
+    const cfg = baseCfg({ companyDataset: "acme-shared", userDatasetPrefix: "acme-user", userId: "alice" });
+    expect(datasetNameForScope("company", cfg, "reviewer")).toBe("acme-shared");
+    expect(datasetNameForScope("user", cfg, "reviewer")).toBe("acme-user-alice");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// syncFilesScoped with runtimeAgentId (multi-agent support)
+// ---------------------------------------------------------------------------
+
+describe("syncFilesScoped with runtimeAgentId", () => {
+  let client: CogneeHttpClient;
+  let cfg: Required<CogneePluginConfig>;
+  let logger: { info?: jest.Mock; warn?: jest.Mock };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFs.readFile.mockImplementation(async (path) => {
+      if (path === STATE_PATH) return JSON.stringify({});
+      if (path === SCOPED_SYNC_INDEX_PATH) return JSON.stringify({});
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    mockFs.writeFile.mockResolvedValue(undefined);
+    mockFs.mkdir.mockResolvedValue(undefined);
+    client = new CogneeHttpClient("http://test", "key");
+    cfg = baseCfg({ agentDatasetPrefix: "proj-agent", agentId: "coder" });
+    logger = { info: jest.fn(), warn: jest.fn() };
+  });
+
+  it("uses 'agent' key for the configured default agent", async () => {
+    const files = [createFile("memory/tools.md", "tools")];
+    const scopedIndexes: ScopedSyncIndexes = {};
+    mockAdd.mockResolvedValue({ datasetId: "ds-agent-coder", datasetName: "proj-agent-coder", dataId: "id1" });
+
+    await syncFilesScoped(client, files, files, scopedIndexes, cfg, logger, "coder");
+
+    expect(scopedIndexes["agent"]).toBeDefined();
+    expect(scopedIndexes["agent:coder"]).toBeUndefined();
+    expect(mockAdd).toHaveBeenCalledWith(expect.objectContaining({ datasetName: "proj-agent-coder" }));
+  });
+
+  it("uses 'agent:{id}' key for a secondary agent", async () => {
+    const files = [createFile("memory/tools.md", "tools")];
+    const scopedIndexes: ScopedSyncIndexes = {};
+    mockAdd.mockResolvedValue({ datasetId: "ds-agent-reviewer", datasetName: "proj-agent-reviewer", dataId: "id1" });
+
+    await syncFilesScoped(client, files, files, scopedIndexes, cfg, logger, "reviewer");
+
+    expect(scopedIndexes["agent:reviewer"]).toBeDefined();
+    expect(scopedIndexes["agent"]).toBeUndefined();
+    expect(mockAdd).toHaveBeenCalledWith(expect.objectContaining({ datasetName: "proj-agent-reviewer" }));
+  });
+
+  it("two agents produce independent index entries without overwriting each other", async () => {
+    const coderFiles = [createFile("memory/tools.md", "coder tools")];
+    const reviewerFiles = [createFile("memory/tools.md", "reviewer tools")];
+    const scopedIndexes: ScopedSyncIndexes = {};
+    mockAdd
+      .mockResolvedValueOnce({ datasetId: "ds-coder", datasetName: "proj-agent-coder", dataId: "id-coder" })
+      .mockResolvedValueOnce({ datasetId: "ds-reviewer", datasetName: "proj-agent-reviewer", dataId: "id-reviewer" });
+
+    await syncFilesScoped(client, coderFiles, coderFiles, scopedIndexes, cfg, logger, "coder");
+    await syncFilesScoped(client, reviewerFiles, reviewerFiles, scopedIndexes, cfg, logger, "reviewer");
+
+    expect(scopedIndexes["agent"]).toBeDefined();
+    expect(scopedIndexes["agent:reviewer"]).toBeDefined();
+    expect(scopedIndexes["agent"]!.entries["memory/tools.md"]?.dataId).toBe("id-coder");
+    expect(scopedIndexes["agent:reviewer"]!.entries["memory/tools.md"]?.dataId).toBe("id-reviewer");
+  });
+
+  it("does not process another agent's index entries during sync", async () => {
+    const files = [createFile("memory/tools.md", "tools")];
+    const scopedIndexes: ScopedSyncIndexes = {
+      "agent:other": { entries: { "memory/other.md": { hash: "h", dataId: "other-id" } }, datasetId: "ds-other" },
+    };
+    mockAdd.mockResolvedValue({ datasetId: "ds-coder", datasetName: "proj-agent-coder", dataId: "id1" });
+
+    await syncFilesScoped(client, files, files, scopedIndexes, cfg, logger, "coder");
+
+    // The "other" agent's entries should be untouched
+    expect(scopedIndexes["agent:other"]!.entries["memory/other.md"]).toBeDefined();
+    // "other" agent's delete endpoint should NOT have been called
+    expect(mockDelete).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// loadScopedSyncIndexes key validation (multi-agent support)
+// ---------------------------------------------------------------------------
+
+describe("loadScopedSyncIndexes key validation", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFs.writeFile.mockResolvedValue(undefined);
+    mockFs.mkdir.mockResolvedValue(undefined);
+  });
+
+  it("accepts standard scope keys", async () => {
+    const stored = {
+      company: { entries: { "memory/company/p.md": { hash: "h1" } } },
+      user: { entries: { "memory/user/q.md": { hash: "h2" } } },
+      agent: { entries: { "MEMORY.md": { hash: "h3" } } },
+    };
+    mockFs.readFile.mockResolvedValue(JSON.stringify(stored));
+    const result = await loadScopedSyncIndexes();
+    expect(Object.keys(result)).toEqual(["company", "user", "agent"]);
+  });
+
+  it("accepts agent:{id} keys", async () => {
+    const stored = {
+      "agent:coder": { entries: { "MEMORY.md": { hash: "h1" } } },
+      "agent:reviewer": { entries: { "memory/tools.md": { hash: "h2" } } },
+    };
+    mockFs.readFile.mockResolvedValue(JSON.stringify(stored));
+    const result = await loadScopedSyncIndexes();
+    expect(result["agent:coder"]).toBeDefined();
+    expect(result["agent:reviewer"]).toBeDefined();
+  });
+
+  it("rejects keys with path separators or special chars", async () => {
+    const stored = {
+      "agent:bad/path": { entries: {} },
+      "agent:also bad": { entries: {} },
+      "agent:ok-agent_1": { entries: {} },
+    };
+    mockFs.readFile.mockResolvedValue(JSON.stringify(stored));
+    const result = await loadScopedSyncIndexes();
+    expect(result["agent:bad/path"]).toBeUndefined();
+    expect(result["agent:also bad"]).toBeUndefined();
+    expect(result["agent:ok-agent_1"]).toBeDefined();
+  });
+
+  it("discards unknown top-level keys", async () => {
+    const stored = {
+      agent: { entries: {} },
+      unknown: { entries: {} },
+      compnay: { entries: {} },
+    };
+    mockFs.readFile.mockResolvedValue(JSON.stringify(stored));
+    const result = await loadScopedSyncIndexes();
+    expect(Object.keys(result)).toEqual(["agent"]);
   });
 });

@@ -66,20 +66,24 @@ export async function saveSyncIndex(state: SyncIndex): Promise<void> {
 // we migrate the legacy sync index into the appropriate scope.
 // ---------------------------------------------------------------------------
 
-const VALID_SCOPES = new Set<string>(["company", "user", "agent"]);
+const VALID_FIXED_SCOPES = new Set<string>(["company", "user", "agent"]);
+
+function isValidScopeKey(key: string): boolean {
+  return VALID_FIXED_SCOPES.has(key) || /^agent:[a-zA-Z0-9_-]+$/.test(key);
+}
 
 export async function loadScopedSyncIndexes(): Promise<ScopedSyncIndexes> {
   try {
     const raw = await fs.readFile(SCOPED_SYNC_INDEX_PATH, "utf-8");
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return {};
-    // Validate keys are valid scopes
+    // Validate keys are standard scope names or agent-specific keys ("agent:{id}")
     const result: ScopedSyncIndexes = {};
     for (const [key, value] of Object.entries(parsed)) {
-      if (VALID_SCOPES.has(key) && value && typeof value === "object") {
+      if (isValidScopeKey(key) && value && typeof value === "object") {
         const idx = value as SyncIndex;
         idx.entries ??= {};
-        result[key as MemoryScope] = idx;
+        result[key] = idx;
       }
     }
     return result;

@@ -110,9 +110,36 @@ export function isMultiScopeEnabled(cfg: Required<CogneePluginConfig>): boolean 
 }
 
 /**
- * Resolve the Cognee dataset name for a given memory scope.
+ * Resolve the effective agent ID to use for dataset naming.
+ * "main" and undefined both mean: use the configured default agentId.
  */
-export function datasetNameForScope(scope: MemoryScope, cfg: Required<CogneePluginConfig>): string {
+function effectiveAgentId(runtimeAgentId: string | undefined, cfgAgentId: string): string {
+  if (!runtimeAgentId || runtimeAgentId === "main") return cfgAgentId || "default";
+  return runtimeAgentId;
+}
+
+/**
+ * Resolve the ScopedSyncIndexes key for the agent scope.
+ * Returns "agent" (backward-compat default) when:
+ *   - runtimeAgentId is absent
+ *   - runtimeAgentId is "main" (the primary agent sentinel)
+ *   - runtimeAgentId matches the configured cfgAgentId
+ * Returns "agent:{runtimeAgentId}" for any distinct secondary agent.
+ */
+export function agentScopeKey(runtimeAgentId: string | undefined, cfgAgentId: string): string {
+  if (!runtimeAgentId || runtimeAgentId === "main" || runtimeAgentId === cfgAgentId) return "agent";
+  return `agent:${runtimeAgentId}`;
+}
+
+/**
+ * Resolve the Cognee dataset name for a given memory scope.
+ * Pass runtimeAgentId to use a per-agent dataset name for the "agent" scope.
+ */
+export function datasetNameForScope(
+  scope: MemoryScope,
+  cfg: Required<CogneePluginConfig>,
+  runtimeAgentId?: string,
+): string {
   switch (scope) {
     case "company":
       return cfg.companyDataset || `${cfg.datasetName}-company`;
@@ -120,9 +147,11 @@ export function datasetNameForScope(scope: MemoryScope, cfg: Required<CogneePlug
       return cfg.userDatasetPrefix
         ? `${cfg.userDatasetPrefix}-${cfg.userId || "default"}`
         : `${cfg.datasetName}-user-${cfg.userId || "default"}`;
-    case "agent":
+    case "agent": {
+      const id = effectiveAgentId(runtimeAgentId, cfg.agentId);
       return cfg.agentDatasetPrefix
-        ? `${cfg.agentDatasetPrefix}-${cfg.agentId || "default"}`
-        : `${cfg.datasetName}-agent-${cfg.agentId || "default"}`;
+        ? `${cfg.agentDatasetPrefix}-${id}`
+        : `${cfg.datasetName}-agent-${id}`;
+    }
   }
 }

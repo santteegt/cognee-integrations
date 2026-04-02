@@ -22,7 +22,9 @@ export type CogneeDeleteMode = "soft" | "hard";
 
 export type MemoryScope = "company" | "user" | "agent";
 
-export const MEMORY_SCOPES: readonly MemoryScope[] = ["company", "user", "agent"] as const;
+export const MEMORY_SCOPES_BASE: readonly MemoryScope[] = ["company", "user"] as const;
+
+export const MEMORY_SCOPES: readonly MemoryScope[] = [...MEMORY_SCOPES_BASE, "agent"] as const;
 
 export type ScopeRoute = {
   /** Glob-style pattern matched against the file's relative path */
@@ -104,8 +106,9 @@ export type SyncIndex = {
   entries: Record<string, { hash: string; dataId?: string }>;
 };
 
-/** Per-scope sync indexes, keyed by MemoryScope */
-export type ScopedSyncIndexes = Partial<Record<MemoryScope, SyncIndex>>;
+/** Per-scope sync indexes. Keys are MemoryScope values ("company", "user", "agent")
+ *  or agent-specific keys of the form "agent:{agentId}" for multi-agent setups. */
+export type ScopedSyncIndexes = Partial<Record<string, SyncIndex>>;
 
 export type MemoryFile = {
   /** Relative path from workspace root (e.g. "MEMORY.md", "memory/tools.md") */

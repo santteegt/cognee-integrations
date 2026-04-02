@@ -1,7 +1,7 @@
 import type { CogneeHttpClient } from "./client.js";
 import type { CogneePluginConfig, MemoryFile, MemoryScope, ScopedSyncIndexes, SyncIndex, SyncResult } from "./types.js";
 import { loadDatasetState, saveDatasetState, saveScopedSyncIndexes, saveSyncIndex } from "./persistence.js";
-import { datasetNameForScope, routeFileToScope } from "./scope.js";
+import { agentScopeKey, datasetNameForScope, routeFileToScope } from "./scope.js";
 
 // ---------------------------------------------------------------------------
 // Single-scope sync
@@ -144,9 +144,13 @@ export async function syncFilesScoped(
   scopedIndexes: ScopedSyncIndexes,
   cfg: Required<CogneePluginConfig>,
   logger: { info?: (msg: string) => void; warn?: (msg: string) => void },
-): Promise<SyncResult & { datasetIds: Record<MemoryScope, string | undefined> }> {
+  runtimeAgentId?: string,
+): Promise<SyncResult & { datasetIds: Record<string, string | undefined> }> {
   const totalResult: SyncResult = { added: 0, updated: 0, skipped: 0, errors: 0, deleted: 0 };
-  const datasetIds: Record<MemoryScope, string | undefined> = { company: undefined, user: undefined, agent: undefined };
+  const datasetIds: Record<string, string | undefined> = {};
+
+  // The index key for the agent scope of this particular runtime agent
+  const currentAgentKey = agentScopeKey(runtimeAgentId, cfg.agentId);
 
   // Group changed files by scope
   const changedByScope = new Map<MemoryScope, MemoryFile[]>();
@@ -166,28 +170,33 @@ export async function syncFilesScoped(
     fullByScope.set(scope, list);
   }
 
-  // Determine which scopes need processing
+  // Determine which scopes need processing.
+  // For agent scope, only include the current agent's index key (not other agents').
   const allScopes = new Set<MemoryScope>([
     ...changedByScope.keys(),
-    ...(Object.keys(scopedIndexes) as MemoryScope[]),
+    ...(Object.keys(scopedIndexes).filter(k =>
+      k === "company" || k === "user" || k === currentAgentKey
+    ) as MemoryScope[]),
   ]);
 
   for (const scope of allScopes) {
-    const dsName = datasetNameForScope(scope, cfg);
+    // Map MemoryScope "agent" to the runtime-specific index key
+    const indexKey = scope === "agent" ? currentAgentKey : scope;
+    const dsName = datasetNameForScope(scope, cfg, runtimeAgentId);
     const scopeChanged = changedByScope.get(scope) ?? [];
     const scopeFull = fullByScope.get(scope) ?? [];
 
-    if (!scopedIndexes[scope]) {
-      scopedIndexes[scope] = { entries: {} };
+    if (!scopedIndexes[indexKey]) {
+      scopedIndexes[indexKey] = { entries: {} };
     }
-    const scopeIndex = scopedIndexes[scope]!;
+    const scopeIndex = scopedIndexes[indexKey]!;
 
     const currentPaths = new Set(scopeFull.map(f => f.path));
     const hasDeletedFiles = Object.keys(scopeIndex.entries).some(p => !currentPaths.has(p));
 
     if (scopeChanged.length === 0 && !hasDeletedFiles) continue;
 
-    logger.info?.(`cognee-openclaw: [${scope}] syncing ${scopeChanged.length} changed file(s) to dataset "${dsName}"${hasDeletedFiles ? " + deletions" : ""}`);
+    logger.info?.(`cognee-openclaw: [${indexKey}] syncing ${scopeChanged.length} changed file(s) to dataset "${dsName}"${hasDeletedFiles ? " + deletions" : ""}`);
 
     const result = await syncFiles(client, scopeChanged, scopeFull, scopeIndex, cfg, logger, dsName);
     totalResult.added += result.added;
@@ -195,7 +204,7 @@ export async function syncFilesScoped(
     totalResult.skipped += result.skipped;
     totalResult.errors += result.errors;
     totalResult.deleted += result.deleted;
-    datasetIds[scope] = result.datasetId;
+    datasetIds[indexKey] = result.datasetId;
   }
 
   await saveScopedSyncIndexes(scopedIndexes);
