@@ -41,6 +41,8 @@ const memoryCogneePlugin = {
     let sessionId: string | undefined;
 
     let resolvedWorkspaceDir: string | undefined;
+    let resolveServiceReady: () => void;
+    const serviceReady = new Promise<void>((r) => { resolveServiceReady = r; });
 
     // Load persisted state on startup
     const stateReady = Promise.all([
@@ -297,6 +299,7 @@ const memoryCogneePlugin = {
         id: "cognee-auto-sync",
         async start(ctx) {
           resolvedWorkspaceDir = ctx.workspaceDir || process.cwd();
+          resolveServiceReady!();
 
           try {
             await client.health();
@@ -446,9 +449,9 @@ const memoryCogneePlugin = {
     if (cfg.autoIndex) {
       api.on("agent_end", async (event, ctx) => {
         if (!event.success) return;
-        await stateReady;
+        await Promise.all([stateReady, serviceReady]);
 
-        const workspaceDir = resolvedWorkspaceDir || process.cwd();
+        const workspaceDir = resolvedWorkspaceDir!;
 
         // Fix #4: Actually persist the session into the knowledge graph
         if (cfg.enableSessions && cfg.persistSessionsAfterEnd && sessionId) {
