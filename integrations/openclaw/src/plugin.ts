@@ -222,6 +222,26 @@ const memoryCogneePlugin = {
         });
 
       cognee
+        .command("visualise")
+        .description("Visualise the knowledge graph for the current dataset")
+        .action(async () => {
+          await stateReady;
+          const dsId = datasetId ?? syncIndex.datasetId;
+          if (!dsId) {
+            console.log("No dataset ID found. Run 'cognee index' first to sync files.");
+            process.exit(1);
+          }
+          try {
+            const graph = await client.visualise(dsId);
+            console.log(JSON.stringify(graph, null, 2));
+          } catch (error) {
+            console.log(`Failed to visualise graph: ${error instanceof Error ? error.message : String(error)}`);
+            process.exit(1);
+          }
+          process.exit(0);
+        });
+
+      cognee
         .command("setup")
         .description("Configure OpenClaw to use Cognee for memory (default: replaces built-in, --hybrid: alongside built-in)")
         .option("--hybrid", "Keep built-in memory providers enabled alongside Cognee")

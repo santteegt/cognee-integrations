@@ -336,6 +336,13 @@ export class CogneeHttpClient {
     return this.fetchJson<{ id: string; name: string }[]>(path, { method: "GET" });
   }
 
+  async visualise(datasetId: string): Promise<unknown> {
+    const path = this.isCloud
+      ? `/visualise?dataset_id=${datasetId}`
+      : `/api/v1/visualise?dataset_id=${datasetId}`;
+    return this.fetchJson<unknown>(path, { method: "GET" });
+  }
+
   /**
    * Poll cognify pipeline status. Returns the status string ("completed", "running", "failed", etc.).
    */
