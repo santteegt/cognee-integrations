@@ -442,7 +442,6 @@ describe("syncFilesScoped", () => {
     mockAdd.mockResolvedValue({ datasetId: "ds-company", datasetName: "acme-company", dataId: "cid1" });
     mockUpdate.mockResolvedValue({ datasetId: "ds-user", datasetName: "acme-user-alice", dataId: "uid1" });
     mockDelete.mockResolvedValue({ datasetId: "ds-agent", dataId: "aid1", deleted: true });
-
     const result = await syncFilesScoped(client, files, files, scopedIndexes, cfg, logger);
 
     expect(result.added).toBe(1);
@@ -536,6 +535,36 @@ describe("syncFilesScoped with runtimeAgentId", () => {
     client = new CogneeHttpClient("http://test", "key");
     cfg = baseCfg({ agentDatasetPrefix: "proj-agent", agentId: "coder" });
     logger = { info: jest.fn(), warn: jest.fn() };
+  });
+
+  it("does not delete a just-synced file on first sync for secondary agent (edge case #1)", async () => {
+    // Reproduces the production bug: second-brain syncs 1 file, allScopes must not contain
+    // "agent:second-brain" as a raw key — the loop must only run once for the agent scope.
+    const files = [createFile("memory/2026-03-26.md", "daily notes")];
+    const scopedIndexes: ScopedSyncIndexes = {};
+    mockAdd.mockResolvedValue({ datasetId: "ds-second-brain", datasetName: "proj-agent-second-brain", dataId: "id1" });
+
+    const result = await syncFilesScoped(client, files, files, scopedIndexes, cfg, logger, "second-brain");
+
+    expect(result.added).toBe(1);
+    expect(result.deleted).toBe(0);
+    expect(mockDelete).not.toHaveBeenCalled();
+    expect(scopedIndexes["agent:second-brain"]!.entries["memory/2026-03-26.md"]).toBeDefined();
+  });
+
+  it("does not delete file on subsequent sync when secondary agent already has an index (edge case #1 regression)", async () => {
+    // The entry is already in the index from a previous sync.
+    // allScopes must still only iterate "agent" once, not both "agent" and "agent:second-brain".
+    const files = [createFile("memory/2026-03-26.md", "daily notes", "hash-unchanged")];
+    const scopedIndexes: ScopedSyncIndexes = {
+      "agent:second-brain": { entries: { "memory/2026-03-26.md": { hash: "hash-unchanged", dataId: "id1" } }, datasetId: "ds-second-brain" },
+    };
+
+    const result = await syncFilesScoped(client, files, files, scopedIndexes, cfg, logger, "second-brain");
+
+    expect(result.skipped).toBe(1);
+    expect(result.deleted).toBe(0);
+    expect(mockDelete).not.toHaveBeenCalled();
   });
 
   it("uses 'agent' key for the configured default agent", async () => {

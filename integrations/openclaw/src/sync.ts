@@ -172,12 +172,15 @@ export async function syncFilesScoped(
 
   // Determine which scopes need processing.
   // For agent scope, only include the current agent's index key (not other agents').
+  // Map currentAgentKey back to "agent" so allScopes only ever contains valid MemoryScope
+  // values — prevents "agent:{id}" from being iterated as a phantom scope.
   const allScopes = new Set<MemoryScope>([
     ...changedByScope.keys(),
-    ...(Object.keys(scopedIndexes).filter(k =>
-      k === "company" || k === "user" || k === currentAgentKey
-    ) as MemoryScope[]),
+    ...(Object.keys(scopedIndexes)
+      .filter(k => k === "company" || k === "user" || k === currentAgentKey)
+      .map(k => (k === currentAgentKey ? "agent" : k) as MemoryScope)),
   ]);
+  logger.info?.(`cognee-openclaw: scopes to update: ${Array.from(allScopes)}`);
 
   for (const scope of allScopes) {
     // Map MemoryScope "agent" to the runtime-specific index key
