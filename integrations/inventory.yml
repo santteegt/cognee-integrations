@@ -27,6 +27,17 @@ integrations:
     migration_status: done
     notes: "OpenClaw plugin with auto-recall/capture hooks"
 
+  - slug: claude-code
+    name: "Cognee Plugin for Claude Code"
+    owner: cognee
+    language: python
+    registry: none
+    package_name: null
+    cognee_dependency: sdk
+    current_version: "0.1.0"
+    migration_status: done
+    notes: "Claude Code plugin – session storage via hooks, recall via context lookup, session-to-graph sync"
+
   - slug: dify
     name: "Cognee Tool Plugin for Dify"
     owner: cognee
