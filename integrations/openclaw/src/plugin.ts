@@ -383,7 +383,7 @@ const memoryCogneePlugin = {
           logger.info?.(`cognee-openclaw: session ${sessionId}`);
         }
 
-        const agents = ctx.config.agents?.list ?? [];
+        const agents = api.config.agents?.list ?? [];
         if (agents.length > 0) {
           // Sync each agent's workspace independently with its own agent scope key
           for (const agent of agents) {
@@ -401,7 +401,7 @@ const memoryCogneePlugin = {
         } else {
           // No agent list configured — fall back to single workspace (backward compat)
           try {
-            const result = await runSync(resolvedWorkspaceDir, ctx.logger);
+            const result = await runSync(resolvedWorkspaceDir, logger);
             logger.info?.(`cognee-openclaw: auto-sync complete: ${result.added} added, ${result.updated} updated, ${result.deleted} deleted, ${result.skipped} unchanged`);
           } catch (error) {
             logger.warn?.(`cognee-openclaw: auto-sync failed: ${String(error)}`);
