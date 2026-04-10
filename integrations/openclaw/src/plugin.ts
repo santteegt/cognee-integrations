@@ -48,7 +48,7 @@ const memoryCogneePlugin = {
     let sessionId: string | undefined;
 
     let resolvedWorkspaceDir: string | undefined;
-    let resolveServiceReady: () => void;
+    let resolveServiceReady: (() => void) | undefined;
     const serviceReady = new Promise<void>((r) => { resolveServiceReady = r; });
 
     // Load persisted state on startup
@@ -302,32 +302,68 @@ const memoryCogneePlugin = {
     // ------------------------------------------------------------------
 
     if (cfg.autoIndex) {
+      let autoSyncStarted = false;
+
+      const runAutoSync = async (workspaceDir?: string) => {
+        if (autoSyncStarted) return;
+        autoSyncStarted = true;
+
+        resolvedWorkspaceDir = workspaceDir || process.cwd();
+        resolveServiceReady?.();
+
+        const logger = api.logger;
+
+        try {
+          await client.health();
+        } catch (error) {
+          logger.warn?.(`cognee-openclaw: Cognee API unreachable at ${cfg.baseUrl} — auto-sync disabled for this session. Error: ${String(error)}`);
+          return;
+        }
+
+        if (cfg.enableSessions && !sessionId) {
+          sessionId = `openclaw-${randomUUID()}`;
+          logger.info?.(`cognee-openclaw: session ${sessionId}`);
+        }
+
+        try {
+          const result = await runSync(resolvedWorkspaceDir, logger);
+          logger.info?.(`cognee-openclaw: auto-sync complete: ${result.added} added, ${result.updated} updated, ${result.deleted} deleted, ${result.skipped} unchanged`);
+        } catch (error) {
+          logger.warn?.(`cognee-openclaw: auto-sync failed: ${String(error)}`);
+        }
+      };
+
+      // Try registerService (works on older OpenClaw versions that invoke start())
       api.registerService({
         id: "cognee-auto-sync",
         async start(ctx) {
-          resolvedWorkspaceDir = ctx.workspaceDir || process.cwd();
-          resolveServiceReady!();
-
-          try {
-            await client.health();
-          } catch (error) {
-            ctx.logger.warn?.(`cognee-openclaw: Cognee API unreachable at ${cfg.baseUrl} — auto-sync disabled for this session. Error: ${String(error)}`);
-            return;
-          }
-
-          if (cfg.enableSessions) {
-            sessionId = `openclaw-${randomUUID()}`;
-            ctx.logger.info?.(`cognee-openclaw: session ${sessionId}`);
-          }
-
-          try {
-            const result = await runSync(resolvedWorkspaceDir, ctx.logger);
-            ctx.logger.info?.(`cognee-openclaw: auto-sync complete: ${result.added} added, ${result.updated} updated, ${result.deleted} deleted, ${result.skipped} unchanged`);
-          } catch (error) {
-            ctx.logger.warn?.(`cognee-openclaw: auto-sync failed: ${String(error)}`);
-          }
+          await runAutoSync(ctx.workspaceDir);
         },
       });
+
+      // Fallback: poll for start() invocation. OpenClaw >= 2026.4.x does not call
+      // start() on services registered by memory-kind plugins (core bug). Poll every
+      // 500ms up to 10s so fast machines don't wait unnecessarily while slow ones
+      // still get coverage. The autoSyncStarted guard prevents double-execution if
+      // start() is called late or core fixes this.
+      let elapsed = 0;
+      const pollInterval = setInterval(() => {
+        elapsed += 500;
+        if (autoSyncStarted) {
+          clearInterval(pollInterval);
+          return;
+        }
+        if (elapsed >= 10_000) {
+          clearInterval(pollInterval);
+          const fallbackDir = process.env.OPENCLAW_WORKSPACE
+            || (api as any).runtime?.config?.loadConfig?.()?.agents?.defaults?.workspace
+            || `${process.env.HOME}/.openclaw/workspace`;
+          api.logger.info?.("cognee-openclaw: service start() not invoked, running auto-sync directly");
+          runAutoSync(fallbackDir).catch((e) => {
+            api.logger.warn?.(`cognee-openclaw: fallback auto-sync error: ${String(e)}`);
+          });
+        }
+      }, 500);
     }
 
     // ------------------------------------------------------------------
