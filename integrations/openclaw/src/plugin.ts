@@ -362,11 +362,11 @@ const memoryCogneePlugin = {
     if (cfg.autoIndex) {
       let autoSyncStarted = false;
 
-      const runAutoSync = async (ctx: OpenClawPluginServiceContext) => {
+      const runAutoSync = async (ctx?: OpenClawPluginServiceContext) => {
         if (autoSyncStarted) return;
         autoSyncStarted = true;
 
-        resolvedWorkspaceDir = ctx.workspaceDir || process.cwd();
+        resolvedWorkspaceDir = ctx?.workspaceDir || api.config.agents?.defaults?.workspace || process.cwd();
         resolveServiceReady?.();
 
         const logger = api.logger;
@@ -390,21 +390,21 @@ const memoryCogneePlugin = {
             const agentWorkspace = agent.workspace
               ? api.resolvePath(agent.workspace)
               : resolvedWorkspaceDir;
-            ctx.logger.info?.(`cognee-openclaw: auto-sync agent "${agent.id}" workspace: ${agentWorkspace}`);
+            logger.info?.(`cognee-openclaw: auto-sync agent "${agent.id}" workspace: ${agentWorkspace}`);
             try {
-              const result = await runSync(agentWorkspace, ctx.logger, agent.id);
-              ctx.logger.info?.(`cognee-openclaw: auto-sync [${agent.id}]: ${result.added} added, ${result.updated} updated, ${result.deleted} deleted, ${result.skipped} unchanged`);
+              const result = await runSync(agentWorkspace, logger, agent.id);
+              logger.info?.(`cognee-openclaw: auto-sync [${agent.id}]: ${result.added} added, ${result.updated} updated, ${result.deleted} deleted, ${result.skipped} unchanged`);
             } catch (error) {
-              ctx.logger.warn?.(`cognee-openclaw: auto-sync failed for agent "${agent.id}": ${String(error)}`);
+              logger.warn?.(`cognee-openclaw: auto-sync failed for agent "${agent.id}": ${String(error)}`);
             }
           }
         } else {
           // No agent list configured — fall back to single workspace (backward compat)
           try {
             const result = await runSync(resolvedWorkspaceDir, ctx.logger);
-            ctx.logger.info?.(`cognee-openclaw: auto-sync complete: ${result.added} added, ${result.updated} updated, ${result.deleted} deleted, ${result.skipped} unchanged`);
+            logger.info?.(`cognee-openclaw: auto-sync complete: ${result.added} added, ${result.updated} updated, ${result.deleted} deleted, ${result.skipped} unchanged`);
           } catch (error) {
-            ctx.logger.warn?.(`cognee-openclaw: auto-sync failed: ${String(error)}`);
+            logger.warn?.(`cognee-openclaw: auto-sync failed: ${String(error)}`);
           }
         }
       };
@@ -425,9 +425,8 @@ const memoryCogneePlugin = {
       setTimeout(() => {
         if (autoSyncStarted) return;
         const config = api.runtime?.config?.loadConfig?.();
-        const fallbackDir = config?.agents?.defaults?.workspace;
         api.logger.info?.("cognee-openclaw: service start() not invoked, running auto-sync directly");
-        runAutoSync(fallbackDir).catch((e) => {
+        runAutoSync().catch((e) => {
           api.logger.warn?.(`cognee-openclaw: fallback auto-sync error: ${String(e)}`);
         });
       }, 2_000);
