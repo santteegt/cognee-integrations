@@ -341,29 +341,20 @@ const memoryCogneePlugin = {
         },
       });
 
-      // Fallback: poll for start() invocation. OpenClaw >= 2026.4.x does not call
-      // start() on services registered by memory-kind plugins (core bug). Poll every
-      // 500ms up to 10s so fast machines don't wait unnecessarily while slow ones
-      // still get coverage. The autoSyncStarted guard prevents double-execution if
-      // start() is called late or core fixes this.
-      let elapsed = 0;
-      const pollInterval = setInterval(() => {
-        elapsed += 500;
-        if (autoSyncStarted) {
-          clearInterval(pollInterval);
-          return;
-        }
-        if (elapsed >= 10_000) {
-          clearInterval(pollInterval);
-          const fallbackDir = process.env.OPENCLAW_WORKSPACE
-            || (api as any).runtime?.config?.loadConfig?.()?.agents?.defaults?.workspace
-            || `${process.env.HOME}/.openclaw/workspace`;
-          api.logger.info?.("cognee-openclaw: service start() not invoked, running auto-sync directly");
-          runAutoSync(fallbackDir).catch((e) => {
-            api.logger.warn?.(`cognee-openclaw: fallback auto-sync error: ${String(e)}`);
-          });
-        }
-      }, 500);
+      // Fallback: OpenClaw >= 2026.4.x does not call start() on services
+      // registered by memory-kind plugins (core bug). Instead of polling,
+      // schedule the auto-sync to run on the next tick. The autoSyncStarted
+      // guard prevents double-execution if start() is called later or the
+      // core bug is fixed.
+      setTimeout(() => {
+        if (autoSyncStarted) return;
+        const config = api.runtime?.config?.loadConfig?.();
+        const fallbackDir = config?.agents?.defaults?.workspace;
+        api.logger.info?.("cognee-openclaw: service start() not invoked, running auto-sync directly");
+        runAutoSync(fallbackDir).catch((e) => {
+          api.logger.warn?.(`cognee-openclaw: fallback auto-sync error: ${String(e)}`);
+        });
+      }, 2_000);
     }
 
     // ------------------------------------------------------------------
