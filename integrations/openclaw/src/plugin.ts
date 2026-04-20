@@ -247,11 +247,23 @@ const memoryCogneePlugin = {
       cognee
         .command("visualise")
         .description("Visualise the knowledge graph for the current dataset")
-        .action(async () => {
+        .option("--agent-id <id>", "Agent ID to visualize")
+        .option("--scope <scope>", "Agent Scope to visualize (if multiscope is enabled)", "agent")
+        .action(async (opts: { agentId?: string, scope: MemoryScope }) => {
           await stateReady;
-          const dsId = datasetId ?? syncIndex.datasetId;
+          let dsId: string;
+          if (multiScope) {
+            const state = await loadDatasetState();
+            const indexKey = opts.scope === "agent"
+              ? agentScopeKey(opts.agentId, cfg.agentId)
+              : opts.scope;
+            const dsName = datasetNameForScope(opts.scope, cfg, opts.agentId);
+            dsId = state[dsName] ?? scopedIndexes[indexKey]?.datasetId;
+          } else {
+            dsId = datasetId ?? syncIndex.datasetId;
+          }
           if (!dsId) {
-            console.log("No dataset ID found. Run 'cognee index' first to sync files.");
+            console.log(`No dataset ID found for agent "${opts.agentId ?? "main"}"${multiScope ? ` and scope "${opts.scope}"` : ""}. Run 'cognee index' first to sync files.`);
             process.exit(1);
           }
           try {
