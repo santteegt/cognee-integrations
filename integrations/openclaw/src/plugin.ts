@@ -233,7 +233,7 @@ const memoryCogneePlugin = {
           }
           try {
             const graph = await client.visualise(dsId);
-            console.log(JSON.stringify(graph, null, 2));
+            console.log(graph);
           } catch (error) {
             console.log(`Failed to visualise graph: ${error instanceof Error ? error.message : String(error)}`);
             process.exit(1);
@@ -525,7 +525,7 @@ const memoryCogneePlugin = {
 
             if (targetDatasetIds.length > 0) {
               // Call Cognee's session persistence endpoint via the generic fetchJson
-              await client.fetchJson("/api/v1/sessions/persist", {
+              await client.fetchAPI("/api/v1/sessions/persist", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
