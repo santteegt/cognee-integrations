@@ -200,6 +200,7 @@ const memoryCogneePlugin = {
                 if (!existing) newCount++;
                 else if (existing.hash !== file.hash) dirty++;
               }
+              console.log(`\n[${scope.toUpperCase()}] Dataset: ${dsName}`);
               console.log(`  Dataset ID: ${state[dsName] ?? scopeIndex.datasetId ?? "(not set)"}`);
               console.log(`  Indexed files: ${entryCount}`);
               console.log(`  Workspace files: ${scopeFiles.length}`);
