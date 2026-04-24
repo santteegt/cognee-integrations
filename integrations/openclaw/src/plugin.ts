@@ -15,7 +15,7 @@ import {
   SCOPED_SYNC_INDEX_PATH,
   SYNC_INDEX_PATH,
 } from "./persistence.js";
-import { agentScopeKey, datasetNameForScope, isMultiScopeEnabled, routeFileToScope } from "./scope.js";
+import { agentScopeKey, datasetNameForScope, isMultiScopeEnabled, routeFileToScope, sharedScopeIndexKey } from "./scope.js";
 import { syncFiles, syncFilesScoped } from "./sync.js";
 
 // ---------------------------------------------------------------------------
@@ -184,10 +184,11 @@ const memoryCogneePlugin = {
 
           if (multiScope) {
             const state = await loadDatasetState();
+            const statusAgentKey = agentScopeKey(opts.agentId, cfg.agentId);
             for (const scope of MEMORY_SCOPES) {
               const indexKey = scope === "agent"
-                ? agentScopeKey(opts.agentId, cfg.agentId)
-                : scope;
+                ? statusAgentKey
+                : sharedScopeIndexKey(scope, statusAgentKey);
               const dsName = datasetNameForScope(scope, cfg, opts.agentId);
               const scopeIndex = scopedIndexes[indexKey] ?? { entries: {} };
               const entryCount = Object.keys(scopeIndex.entries).length;
@@ -626,11 +627,15 @@ const memoryCogneePlugin = {
 
             const files = await collectMemoryFiles(workspaceDir);
             const currentAgentKey = agentScopeKey(runtimeAgentId, cfg.agentId);
+            const currentCompanyKey = sharedScopeIndexKey("company", currentAgentKey);
+            const currentUserKey = sharedScopeIndexKey("user", currentAgentKey);
 
             let hasChanges = false;
             for (const file of files) {
               const scope = routeFileToScope(file.path, cfg.scopeRouting, cfg.defaultWriteScope);
-              const indexKey = scope === "agent" ? currentAgentKey : scope;
+              const indexKey = scope === "agent"
+                ? currentAgentKey
+                : sharedScopeIndexKey(scope, currentAgentKey);
               const scopeIndex = scopedIndexes[indexKey];
               if (!scopeIndex) { hasChanges = true; break; }
               const existing = scopeIndex.entries[file.path];
@@ -639,8 +644,8 @@ const memoryCogneePlugin = {
 
             if (!hasChanges) {
               const currentPaths = new Set(files.map(f => f.path));
-              // Only check the current agent's index (not other agents') for deletions
-              for (const key of [...MEMORY_SCOPES, currentAgentKey]) {
+              // Only check this agent's own index slices for deletions
+              for (const key of [currentCompanyKey, currentUserKey, currentAgentKey]) {
                 const scopeIndex = scopedIndexes[key];
                 if (scopeIndex && Object.keys(scopeIndex.entries).some(p => !currentPaths.has(p))) {
                   hasChanges = true;

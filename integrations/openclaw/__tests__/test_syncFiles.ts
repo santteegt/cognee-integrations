@@ -657,6 +657,36 @@ describe("loadScopedSyncIndexes key validation", () => {
     expect(result["agent:reviewer"]).toBeDefined();
   });
 
+  it("accepts company:{id} and user:{id} keys (per-agent shared scope)", async () => {
+    const stored = {
+      "company:second-brain": { entries: { "memory/company/strategy.md": { hash: "h1" } } },
+      "user:analyst_1": { entries: { "memory/user/prefs.md": { hash: "h2" } } },
+    };
+    mockFs.readFile.mockResolvedValue(JSON.stringify(stored));
+    const result = await loadScopedSyncIndexes();
+    expect(result["company:second-brain"]).toBeDefined();
+    expect(result["user:analyst_1"]).toBeDefined();
+  });
+
+  it("rejects malformed company:{id} and user:{id} keys", async () => {
+    const stored = {
+      "company:bad/path": { entries: {} },
+      "company:also bad": { entries: {} },
+      "company:ok-agent_1": { entries: {} },
+      "user:bad/path": { entries: {} },
+      "user:ok-user_2": { entries: {} },
+      "compnay:typo": { entries: {} },
+    };
+    mockFs.readFile.mockResolvedValue(JSON.stringify(stored));
+    const result = await loadScopedSyncIndexes();
+    expect(result["company:bad/path"]).toBeUndefined();
+    expect(result["company:also bad"]).toBeUndefined();
+    expect(result["company:ok-agent_1"]).toBeDefined();
+    expect(result["user:bad/path"]).toBeUndefined();
+    expect(result["user:ok-user_2"]).toBeDefined();
+    expect(result["compnay:typo"]).toBeUndefined();
+  });
+
   it("rejects keys with path separators or special chars", async () => {
     const stored = {
       "agent:bad/path": { entries: {} },
@@ -679,5 +709,106 @@ describe("loadScopedSyncIndexes key validation", () => {
     mockFs.readFile.mockResolvedValue(JSON.stringify(stored));
     const result = await loadScopedSyncIndexes();
     expect(Object.keys(result)).toEqual(["agent"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// syncFilesScoped — shared scope cross-agent protection (edge case #2)
+// ---------------------------------------------------------------------------
+
+describe("syncFilesScoped — shared scope cross-agent protection", () => {
+  let client: CogneeHttpClient;
+  let cfg: Required<CogneePluginConfig>;
+  let logger: { info?: jest.Mock; warn?: jest.Mock };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFs.readFile.mockImplementation(async (path) => {
+      if (path === STATE_PATH) return JSON.stringify({});
+      if (path === SCOPED_SYNC_INDEX_PATH) return JSON.stringify({});
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    mockFs.writeFile.mockResolvedValue(undefined);
+    mockFs.mkdir.mockResolvedValue(undefined);
+    client = new CogneeHttpClient("http://test", "key");
+    cfg = baseCfg({ agentId: "coder" });
+    logger = { info: jest.fn(), warn: jest.fn() };
+  });
+
+  it("second agent does NOT delete first agent's company file", async () => {
+    const scopedIndexes: ScopedSyncIndexes = {
+      company: { entries: { "memory/company/policy.md": { hash: "hash-p", dataId: "id-policy" } }, datasetId: "ds-company" },
+    };
+    const files = [createFile("memory/company/strategy.md", "strategy")];
+    mockAdd.mockResolvedValue({ datasetId: "ds-company", datasetName: "test-company", dataId: "id-strategy" });
+
+    const result = await syncFilesScoped(client, files, files, scopedIndexes, cfg, logger, "second-brain");
+
+    expect(result.deleted).toBe(0);
+    expect(mockDelete).not.toHaveBeenCalled();
+    // Main agent's "company" slice is untouched
+    expect(scopedIndexes["company"]!.entries["memory/company/policy.md"]).toBeDefined();
+    // Second-brain gets its own isolated slice
+    expect(scopedIndexes["company:second-brain"]!.entries["memory/company/strategy.md"]).toBeDefined();
+  });
+
+  it("main agent DOES delete its own company file when it disappears from workspace", async () => {
+    const scopedIndexes: ScopedSyncIndexes = {
+      company: { entries: { "memory/company/policy.md": { hash: "hash-p", dataId: "id-policy" } }, datasetId: "ds-company" },
+    };
+    mockDelete.mockResolvedValue({ datasetId: "ds-company", dataId: "id-policy", deleted: true });
+
+    // runtimeAgentId "coder" === cfgAgentId "coder" → currentAgentKey = "agent" → currentCompanyKey = "company"
+    const result = await syncFilesScoped(client, [], [], scopedIndexes, cfg, logger, "coder");
+
+    expect(result.deleted).toBe(1);
+    expect(scopedIndexes["company"]!.entries["memory/company/policy.md"]).toBeUndefined();
+  });
+
+  it("both agents' company files coexist after sequential independent syncs", async () => {
+    const scopedIndexes: ScopedSyncIndexes = {};
+    const mainFiles = [createFile("memory/company/policy.md", "policy")];
+    const sbFiles = [createFile("memory/company/strategy.md", "strategy")];
+
+    mockAdd
+      .mockResolvedValueOnce({ datasetId: "ds-company", datasetName: "test-company", dataId: "id-policy" })
+      .mockResolvedValueOnce({ datasetId: "ds-company", datasetName: "test-company", dataId: "id-strategy" });
+
+    await syncFilesScoped(client, mainFiles, mainFiles, scopedIndexes, cfg, logger, "coder");
+    const result = await syncFilesScoped(client, sbFiles, sbFiles, scopedIndexes, cfg, logger, "second-brain");
+
+    expect(result.added).toBe(1);
+    expect(result.deleted).toBe(0);
+    expect(scopedIndexes["company"]!.entries["memory/company/policy.md"]).toBeDefined();
+    expect(scopedIndexes["company:second-brain"]!.entries["memory/company/strategy.md"]).toBeDefined();
+  });
+
+  it("name collision: two agents indexing the same relative path use distinct Cognee filenames", async () => {
+    const scopedIndexes: ScopedSyncIndexes = {};
+    const sharedPath = "memory/company/shared.md";
+    const mainFile = createFile(sharedPath, "main content", "hash-main");
+    const sbFile = createFile(sharedPath, "sb content", "hash-sb");
+
+    mockAdd
+      .mockResolvedValueOnce({ datasetId: "ds-company", datasetName: "test-company", dataId: "id-main" })
+      .mockResolvedValueOnce({ datasetId: "ds-company", datasetName: "test-company", dataId: "id-sb" });
+
+    await syncFilesScoped(client, [mainFile], [mainFile], scopedIndexes, cfg, logger, "coder");
+    const result = await syncFilesScoped(client, [sbFile], [sbFile], scopedIndexes, cfg, logger, "second-brain");
+
+    // Each agent's dataId is stored independently
+    expect(scopedIndexes["company"]!.entries[sharedPath]!.dataId).toBe("id-main");
+    expect(scopedIndexes["company:second-brain"]!.entries[sharedPath]!.dataId).toBe("id-sb");
+
+    // No cross-agent deletions
+    expect(result.deleted).toBe(0);
+    expect(mockDelete).not.toHaveBeenCalled();
+
+    // Main agent used canonical filePath (no prefix)
+    const mainAddCall = mockAdd.mock.calls.find((c: any[]) => c[0].filePath === sharedPath);
+    expect(mainAddCall).toBeDefined();
+    // Second-brain used prefixed filePath to avoid Cognee filename collision
+    const sbAddCall = mockAdd.mock.calls.find((c: any[]) => c[0].filePath === `second-brain/${sharedPath}`);
+    expect(sbAddCall).toBeDefined();
   });
 });

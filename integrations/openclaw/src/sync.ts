@@ -1,7 +1,7 @@
 import type { CogneeHttpClient } from "./client.js";
 import type { CogneePluginConfig, MemoryFile, MemoryScope, ScopedSyncIndexes, SyncIndex, SyncResult } from "./types.js";
 import { loadDatasetState, saveDatasetState, saveScopedSyncIndexes, saveSyncIndex } from "./persistence.js";
-import { agentScopeKey, datasetNameForScope, routeFileToScope } from "./scope.js";
+import { agentScopeKey, datasetNameForScope, routeFileToScope, sharedScopeIndexKey } from "./scope.js";
 
 // ---------------------------------------------------------------------------
 // Single-scope sync
@@ -15,6 +15,7 @@ export async function syncFiles(
   cfg: Required<CogneePluginConfig>,
   logger: { info?: (msg: string) => void; warn?: (msg: string) => void },
   overrideDatasetName?: string,
+  filePathPrefix?: string,
 ): Promise<SyncResult & { datasetId?: string }> {
   const result: SyncResult = { added: 0, updated: 0, skipped: 0, errors: 0, deleted: 0 };
   const dsName = overrideDatasetName || cfg.datasetName;
@@ -38,7 +39,7 @@ export async function syncFiles(
             dataId: existing.dataId,
             datasetId,
             data: dataWithMetadata,
-            filePath: file.path,
+            filePath: filePathPrefix ? `${filePathPrefix}/${file.path}` : file.path,
             datasetName: dsName,
           });
           const newDataId = updateResponse.dataId;
@@ -66,7 +67,7 @@ export async function syncFiles(
         datasetName: dsName,
         datasetId,
         data: dataWithMetadata,
-        filePath: file.path,
+        filePath: filePathPrefix ? `${filePathPrefix}/${file.path}` : file.path,
       });
 
       if (response.datasetId && response.datasetId !== datasetId) {
@@ -151,6 +152,9 @@ export async function syncFilesScoped(
 
   // The index key for the agent scope of this particular runtime agent
   const currentAgentKey = agentScopeKey(runtimeAgentId, cfg.agentId);
+  // Per-agent index keys for shared scopes (main agent uses bare "company"/"user" for backward compat)
+  const currentCompanyKey = sharedScopeIndexKey("company", currentAgentKey);
+  const currentUserKey = sharedScopeIndexKey("user", currentAgentKey);
 
   // Group changed files by scope
   const changedByScope = new Map<MemoryScope, MemoryFile[]>();
@@ -171,20 +175,26 @@ export async function syncFilesScoped(
   }
 
   // Determine which scopes need processing.
-  // For agent scope, only include the current agent's index key (not other agents').
-  // Map currentAgentKey back to "agent" so allScopes only ever contains valid MemoryScope
-  // values — prevents "agent:{id}" from being iterated as a phantom scope.
+  // Only include index keys that belong to this agent — each agent owns its own slice of
+  // shared scopes (currentCompanyKey / currentUserKey) and its own agent scope key.
+  // Map raw index keys back to valid MemoryScope values for the loop.
   const allScopes = new Set<MemoryScope>([
     ...changedByScope.keys(),
     ...(Object.keys(scopedIndexes)
-      .filter(k => k === "company" || k === "user" || k === currentAgentKey)
-      .map(k => (k === currentAgentKey ? "agent" : k) as MemoryScope)),
+      .filter(k => k === currentAgentKey || k === currentCompanyKey || k === currentUserKey)
+      .map(k => {
+        if (k === currentAgentKey) return "agent";
+        if (k === currentCompanyKey) return "company";
+        return "user";
+      }) as MemoryScope[]),
   ]);
   logger.info?.(`cognee-openclaw: scopes to update: ${Array.from(allScopes)}`);
 
   for (const scope of allScopes) {
-    // Map MemoryScope "agent" to the runtime-specific index key
-    const indexKey = scope === "agent" ? currentAgentKey : scope;
+    // Map MemoryScope to the per-agent index key (agent → currentAgentKey, shared → per-agent key)
+    const indexKey = scope === "agent"
+      ? currentAgentKey
+      : sharedScopeIndexKey(scope as "company" | "user", currentAgentKey);
     const dsName = datasetNameForScope(scope, cfg, runtimeAgentId);
     const scopeChanged = changedByScope.get(scope) ?? [];
     const scopeFull = fullByScope.get(scope) ?? [];
@@ -201,7 +211,13 @@ export async function syncFilesScoped(
 
     logger.info?.(`cognee-openclaw: [${indexKey}] syncing ${scopeChanged.length} changed file(s) to dataset "${dsName}"${hasDeletedFiles ? " + deletions" : ""}`);
 
-    const result = await syncFiles(client, scopeChanged, scopeFull, scopeIndex, cfg, logger, dsName);
+    // For non-primary agents in shared scopes, prefix filePaths sent to Cognee to avoid
+    // filename collisions when two agents hold the same relative path in their workspaces.
+    const filePathPrefix = (scope !== "agent" && currentAgentKey !== "agent")
+      ? currentAgentKey.slice("agent:".length)
+      : undefined;
+
+    const result = await syncFiles(client, scopeChanged, scopeFull, scopeIndex, cfg, logger, dsName, filePathPrefix);
     totalResult.added += result.added;
     totalResult.updated += result.updated;
     totalResult.skipped += result.skipped;

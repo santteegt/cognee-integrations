@@ -69,7 +69,10 @@ export async function saveSyncIndex(state: SyncIndex): Promise<void> {
 const VALID_FIXED_SCOPES = new Set<string>(["company", "user", "agent"]);
 
 function isValidScopeKey(key: string): boolean {
-  return VALID_FIXED_SCOPES.has(key) || /^agent:[a-zA-Z0-9_-]+$/.test(key);
+  return VALID_FIXED_SCOPES.has(key)
+    || /^agent:[a-zA-Z0-9_-]+$/.test(key)
+    || /^company:[a-zA-Z0-9_-]+$/.test(key)
+    || /^user:[a-zA-Z0-9_-]+$/.test(key);
 }
 
 export async function loadScopedSyncIndexes(): Promise<ScopedSyncIndexes> {

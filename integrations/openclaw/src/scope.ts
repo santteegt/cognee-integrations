@@ -132,6 +132,17 @@ export function agentScopeKey(runtimeAgentId: string | undefined, cfgAgentId: st
 }
 
 /**
+ * Resolve the ScopedSyncIndexes key for a shared scope ("company" or "user")
+ * for the current agent. The main agent ("agent") uses the bare scope name for
+ * backward compatibility; secondary agents use "{scope}:{agentSuffix}".
+ */
+export function sharedScopeIndexKey(scope: Exclude<MemoryScope, "agent">, currentAgentKey: string): string {
+  if (currentAgentKey === "agent") return scope;
+  const suffix = currentAgentKey.startsWith("agent:") ? currentAgentKey.slice(6) : currentAgentKey;
+  return `${scope}:${suffix}`;
+}
+
+/**
  * Resolve the Cognee dataset name for a given memory scope.
  * Pass runtimeAgentId to use a per-agent dataset name for the "agent" scope.
  */
