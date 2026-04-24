@@ -95,7 +95,7 @@ const memoryCogneePlugin = {
     // Helper: resolve the workspace directory for a given agent ID from config
     function getWorkspaceForAgent(config: OpenClawConfig, agentId: string, fallback: string): string {
       const entry = (config.agents?.list ?? []).find(a => a.id === agentId);
-      if (entry?.workspace) return api.resolvePath(entry.workspace);
+      if (entry?.workspace) return entry.workspace;
       return fallback;
     }
 
@@ -402,7 +402,7 @@ const memoryCogneePlugin = {
           // Sync each agent's workspace independently with its own agent scope key
           for (const agent of agents) {
             const agentWorkspace = agent.workspace
-              ? api.resolvePath(agent.workspace)
+              ? agent.workspace
               : resolvedWorkspaceDir;
             logger.info?.(`cognee-openclaw: auto-sync agent "${agent.id}" workspace: ${agentWorkspace}`);
             try {
