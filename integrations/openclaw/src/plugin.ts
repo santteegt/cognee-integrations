@@ -223,6 +223,7 @@ const memoryCogneePlugin = {
               console.log(`  New (unindexed): ${newCount}`);
               console.log(`  Changed (dirty): ${dirty}`);
             }
+            console.log(`Sync index: ${SCOPED_SYNC_INDEX_PATH}`);
           } else {
             const entryCount = Object.keys(syncIndex.entries).length;
             const entriesWithDataId = Object.values(syncIndex.entries).filter((e) => e.dataId).length;
