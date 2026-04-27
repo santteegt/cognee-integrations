@@ -24,6 +24,11 @@ import { syncFiles, syncFilesScoped } from "./sync.js";
 
 type MemoryFlushPlanRegistrant = OpenClawPluginApi & {
   registerMemoryFlushPlan?: (resolver: typeof buildMemoryFlushPlan) => void;
+  registerMemoryRuntime?: (runtime: {
+    resolveMemoryBackendConfig(params: { cfg: OpenClawConfig; agentId: string }): { backend: "builtin" } | { backend: "qmd"; qmd?: { command?: string } };
+    getMemorySearchManager(params: { cfg: OpenClawConfig; agentId: string; purpose?: string }): Promise<{ manager: null; error?: string }>;
+    closeAllMemorySearchManagers?(): Promise<void>;
+  }) => void;
 };
 const memoryCogneePlugin = {
   id: "cognee-openclaw",
@@ -34,6 +39,16 @@ const memoryCogneePlugin = {
     const cfg = resolveConfig(api.pluginConfig);
     const client = new CogneeHttpClient(cfg.baseUrl, cfg.apiKey, cfg.username, cfg.password, cfg.requestTimeoutMs, cfg.ingestionTimeoutMs, cfg.mode);
     const multiScope = isMultiScopeEnabled(cfg);
+
+    // Register a runtime so resolveActiveMemoryBackendConfig returns non-null.
+    // cognee-openclaw handles recall via the before_prompt_build hook — the search
+    // manager is intentionally null. resolveMemoryBackendConfig returns "builtin"
+    // (the only non-QMD variant) to signal an active third-party memory backend.
+    (api as MemoryFlushPlanRegistrant).registerMemoryRuntime?.({
+      resolveMemoryBackendConfig: () => ({ backend: "builtin" as const }),
+      getMemorySearchManager: async () => ({ manager: null }),
+    });
+    api.logger.debug?.("cognee-openclaw: registered memory runtime");
 
     (api as MemoryFlushPlanRegistrant).registerMemoryFlushPlan?.(buildMemoryFlushPlan);
     api.logger.debug?.("cognee-openclaw: registered memory flush plan");
