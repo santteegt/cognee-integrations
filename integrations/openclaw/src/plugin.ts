@@ -48,7 +48,7 @@ const memoryCogneePlugin = {
     // Session state
     let sessionId: string | undefined;
 
-    let resolvedWorkspaceDir: string | undefined;
+    let resolvedWorkspaceDir: string;
     let resolveServiceReady: (() => void) | undefined;
     const serviceReady = new Promise<void>((r) => { resolveServiceReady = r; });
 
@@ -253,7 +253,7 @@ const memoryCogneePlugin = {
         .option("--scope <scope>", "Agent Scope to visualize (if multiscope is enabled)", "agent")
         .action(async (opts: { agentId?: string, scope: MemoryScope }) => {
           await stateReady;
-          let dsId: string;
+          let dsId: string | undefined;
           if (multiScope) {
             const state = await loadDatasetState();
             const indexKey = opts.scope === "agent"
@@ -287,11 +287,11 @@ const memoryCogneePlugin = {
           const config = loadConfig();
 
           // Set Cognee as the memory slot
-          config.plugins ??= {} as typeof config.plugins;
-          config.plugins.slots ??= {} as typeof config.plugins.slots;
+          config.plugins ??= {} as NonNullable<typeof config.plugins>;
+          config.plugins.slots ??= {} as NonNullable<typeof config.plugins.slots>;
           (config.plugins.slots as Record<string, string>).memory = "cognee-openclaw";
 
-          config.plugins.entries ??= {} as typeof config.plugins.entries;
+          config.plugins.entries ??= {} as NonNullable<typeof config.plugins.entries>;
           const entries = config.plugins.entries as Record<string, { enabled: boolean }>;
 
           if (opts.hybrid) {
