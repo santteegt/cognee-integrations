@@ -307,7 +307,7 @@ const memoryCogneePlugin = {
           (config.plugins.slots as Record<string, string>).memory = "cognee-openclaw";
 
           config.plugins.entries ??= {} as NonNullable<typeof config.plugins.entries>;
-          const entries = config.plugins.entries as Record<string, { enabled: boolean }>;
+          const entries = config.plugins.entries as Record<string, { enabled: boolean; hooks?: { allowPromptInjection?: boolean; allowConversationAccess?: boolean; } }>;
 
           if (opts.hybrid) {
             // Hybrid mode: keep built-in memory enabled
@@ -322,6 +322,12 @@ const memoryCogneePlugin = {
           // Ensure cognee-openclaw is enabled
           entries["cognee-openclaw"] ??= { enabled: true } as typeof entries[string];
           entries["cognee-openclaw"].enabled = true;
+
+          // Ensure this flag is enabled for the before_prompt_build & agent_end hooks to work
+          entries["cognee-openclaw"].hooks = {
+            allowPromptInjection: true,
+            allowConversationAccess: true,
+          };
 
           await writeConfigFile(config);
 
