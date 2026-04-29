@@ -34,6 +34,7 @@ const memoryCogneePlugin = {
     const client = new CogneeHttpClient(cfg.baseUrl, cfg.apiKey, cfg.username, cfg.password, cfg.requestTimeoutMs, cfg.ingestionTimeoutMs, cfg.mode);
     const multiScope = isMultiScopeEnabled(cfg);
     // cache status variables
+    let vectorAvailable = false;
     let lastTotalIndexedFiles = 0;
     const updateTotalIndexedFiles = (indexes: ScopedSyncIndexes) => {
       const scopes = Object.keys(indexes);
@@ -58,13 +59,14 @@ const memoryCogneePlugin = {
               chunks: 0,
               vector: {
                 enabled: true,
-                available: false,
+                available: vectorAvailable,
               },
             }),
             probeVectorAvailability: async () => {
               try {
                 const rs = await client.healthDetailed();
-                return rs.components.vector_db.status === "healthy";
+                vectorAvailable = rs.components.vector_db.status === "healthy";
+                return vectorAvailable;
               } catch {
                 return false;
               }
