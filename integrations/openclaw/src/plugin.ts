@@ -21,9 +21,11 @@ import { syncFiles, syncFilesScoped } from "./sync.js";
 // ---------------------------------------------------------------------------
 // Plugin registration
 // ---------------------------------------------------------------------------
+const PLUGIN_ID = "cognee-openclaw";
+const backend = "builtin";
 
 const memoryCogneePlugin = {
-  id: "cognee-openclaw",
+  id: PLUGIN_ID,
   name: "Memory (Cognee)",
   description: "Cognee-backed memory with multi-scope support (company/user/agent), session tracking, and auto-recall",
   kind: "memory" as const,
@@ -31,15 +33,61 @@ const memoryCogneePlugin = {
     const cfg = resolveConfig(api.pluginConfig);
     const client = new CogneeHttpClient(cfg.baseUrl, cfg.apiKey, cfg.username, cfg.password, cfg.requestTimeoutMs, cfg.ingestionTimeoutMs, cfg.mode);
     const multiScope = isMultiScopeEnabled(cfg);
+    // cache status variables
+    let lastTotalIndexedFiles = 0;
+    const updateTotalIndexedFiles = (indexes: ScopedSyncIndexes) => {
+      const scopes = Object.keys(indexes);
+      lastTotalIndexedFiles = scopes
+        .map((s) => indexes[s])
+        .filter(i => !!i)
+        .map((i) => Object.keys(i.entries).length)
+        .reduce((a, b) => a + b, 0);
+    };
 
     api.registerMemoryCapability({
       flushPlanResolver: buildMemoryFlushPlan,
       runtime: {
-        resolveMemoryBackendConfig: () => ({ backend: "builtin" as const }),
-        // NOTICE: Set to null because moving recall hook into getMemorySearchManager would couple it 
-        // to an unexported openclaw-internal interface. An undocumented method would break silently.
-        // Stick to using hooks instead as it's a more stable approach for a third-party plugin
-        getMemorySearchManager: async () => ({ manager: null }),
+        resolveMemoryBackendConfig: () => ({ backend }),
+        // NOTICE: Stick to using hooks instead for memory recall as it's a more stable approach for a third-party plugin
+        getMemorySearchManager: async () => ({
+          manager: {
+            status: () => ({
+              backend,
+              provider: PLUGIN_ID,
+              files: lastTotalIndexedFiles,
+              chunks: 0,
+              vector: {
+                enabled: true,
+                available: false,
+              },
+            }),
+            probeVectorAvailability: async () => {
+              try {
+                const rs = await client.healthDetailed();
+                return rs.components.vector_db.status === "healthy";
+              } catch {
+                return false;
+              }
+            },
+            probeEmbeddingAvailability: async () => {
+              try {
+                const rs = await client.healthDetailed();
+                return {
+                  ok: rs.components.embedding_service.status === "healthy"
+                };
+              } catch (error) {
+                return { ok: false, error: String(error) };
+              }
+            },
+            search: async () => [],
+            readFile: async (params: { relPath: string; from?: number; lines?: number }) => ({
+              text: "",
+              path: params.relPath,
+              from: params.from ?? 0,
+              lines: params.lines ?? 0,
+            }),
+          }
+        }),
       },
     });
     api.logger.debug?.("cognee-openclaw: registered memory capability");
@@ -77,11 +125,13 @@ const memoryCogneePlugin = {
               const migrated = await migrateLegacyIndex(cfg.defaultWriteScope);
               if (migrated) {
                 scopedIndexes = migrated;
+                updateTotalIndexedFiles(scopedIndexes);
                 api.logger.info?.(`cognee-openclaw: migrated legacy sync index to scope "${cfg.defaultWriteScope}"`);
                 return;
               }
             }
             scopedIndexes = indexes;
+            updateTotalIndexedFiles(scopedIndexes);
           })
           .catch((error) => {
             api.logger.warn?.(`cognee-openclaw: failed to load scoped sync indexes: ${String(error)}`);
@@ -89,6 +139,7 @@ const memoryCogneePlugin = {
         : loadSyncIndex()
           .then((state) => {
             syncIndex = state;
+            updateTotalIndexedFiles({"agent": syncIndex});
             if (!datasetId && state.datasetId && state.datasetName === cfg.datasetName) {
               datasetId = state.datasetId;
             }
@@ -636,6 +687,7 @@ const memoryCogneePlugin = {
             try {
               const freshIndexes = await loadScopedSyncIndexes();
               scopedIndexes = freshIndexes;
+              updateTotalIndexedFiles(scopedIndexes);
             } catch { /* fall through */ }
 
             const files = await collectMemoryFiles(workspaceDir);
@@ -676,6 +728,7 @@ const memoryCogneePlugin = {
             try {
               const freshIndex = await loadSyncIndex();
               syncIndex.entries = freshIndex.entries;
+              updateTotalIndexedFiles({"agent": syncIndex});
               if (freshIndex.datasetId) syncIndex.datasetId = freshIndex.datasetId;
               if (freshIndex.datasetName) syncIndex.datasetName = freshIndex.datasetName;
             } catch { /* fall through */ }
