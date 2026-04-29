@@ -183,8 +183,12 @@ This lets the agent distinguish between personal context, shared knowledge, and 
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `baseUrl` | string | `http://localhost:8000` | Cognee API base URL |
-| `apiKey` | string | `$COGNEE_API_KEY` | API key for authentication |
+| `mode` | string | `local` | `"local"` for self-hosted, `"cloud"` for Cognee Cloud (env: `COGNEE_MODE`) |
+| `baseUrl` | string | `http://localhost:8000` | Cognee API base URL (env: `COGNEE_BASE_URL`) |
+| `apiKey` | string | `$COGNEE_API_KEY` | API key for authentication (env: `COGNEE_API_KEY`) |
+| `username` | string | `""` | HTTP basic-auth username (env: `COGNEE_USERNAME`) |
+| `password` | string | `""` | HTTP basic-auth password (env: `COGNEE_PASSWORD`) |
+| `datasetName` | string | `openclaw` | Default dataset name (used when multi-scope datasets are not set) |
 
 ### Memory Scopes
 
@@ -215,6 +219,7 @@ This lets the agent distinguish between personal context, shared knowledge, and 
 | `minScore` | number | `0.3` | Minimum relevance score filter |
 | `maxTokens` | number | `512` | Token cap for recall context per scope |
 | `searchPrompt` | string | `""` | System prompt to guide search |
+| `recallInjectionPosition` | string | `prependContext` | Where to inject recalled memories: `"prependSystemContext"`, `"appendSystemContext"`, or `"prependContext"` |
 
 ### Search Types
 
