@@ -29,6 +29,9 @@ const memoryCogneePlugin = {
   name: "Memory (Cognee)",
   description: "Cognee-backed memory with multi-scope support (company/user/agent), session tracking, and auto-recall",
   kind: "memory" as const,
+  activation: {
+    onStartup: true
+  },
   register(api: OpenClawPluginApi) {
     const cfg = resolveConfig(api.pluginConfig);
     const client = new CogneeHttpClient(cfg.baseUrl, cfg.apiKey, cfg.username, cfg.password, cfg.requestTimeoutMs, cfg.ingestionTimeoutMs, cfg.mode);
@@ -64,6 +67,7 @@ const memoryCogneePlugin = {
             }),
             probeVectorAvailability: async () => {
               try {
+                api.logger.info("probeVectorAvailability...");
                 const rs = await client.healthDetailed();
                 vectorAvailable = rs.components.vector_db.status === "healthy";
                 return vectorAvailable;
