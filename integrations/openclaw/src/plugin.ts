@@ -500,20 +500,6 @@ const memoryCogneePlugin = {
           await runAutoSync(ctx);
         },
       });
-
-      // Fallback: OpenClaw >= 2026.4.x does not call start() on services
-      // registered by memory-kind plugins (core bug). Instead of polling,
-      // schedule the auto-sync to run on the next tick. The autoSyncStarted
-      // guard prevents double-execution if start() is called later or the
-      // core bug is fixed.
-      setTimeout(() => {
-        if (autoSyncStarted) return;
-        const config = api.runtime?.config?.loadConfig?.();
-        api.logger.info?.("cognee-openclaw: service start() not invoked, running auto-sync directly");
-        runAutoSync().catch((e) => {
-          api.logger.warn?.(`cognee-openclaw: fallback auto-sync error: ${String(e)}`);
-        });
-      }, 2_000);
     }
 
     // ------------------------------------------------------------------
